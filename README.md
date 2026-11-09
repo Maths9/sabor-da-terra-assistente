@@ -38,3 +38,7 @@ adk run sabor_da_terra
 ```
 
 Para usar a interface web local, execute `adk web` na raiz do projeto e selecione `sabor_da_terra`. Consulte o [guia oficial do ADK](https://adk.dev/get-started/python/) para mais detalhes. O arquivo `.env` contém credenciais e é ignorado pelo Git.
+
+## Validação técnica
+
+Consulte o [README de validação](validacao/README.md) para ver os testes, resultados e o plano alternativo.
