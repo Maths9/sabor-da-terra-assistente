@@ -1,0 +1,131 @@
+[
+  {
+    "eval_id": "test_001_regionalismo_queijo",
+    "user_input": "Vôte! Tem como mandar um pedaço de queijo coalho bem assadinho pra cá?",
+    "expected_intent": "fazer_pedido",
+    "expected_entities": {
+      "item": "queijo coalho",
+      "preparo": "assado"
+    }
+  },
+  {
+    "eval_id": "test_002_regionalismo_entrega",
+    "user_input": "Arretado! Tu entrega aqui perto do centro de Garanhuns ainda hoje?",
+    "expected_intent": "consultar_entrega",
+    "expected_entities": {
+      "localizacao": "Garanhuns - Centro"
+    }
+  },
+  {
+    "eval_id": "test_003_duvida_cardapio",
+    "user_input": "Ô oxe, o que é que tem de bom no almoço de hoje?",
+    "expected_intent": "consultar_cardapio",
+    "expected_entities": {}
+  },
+  {
+    "eval_id": "test_004_rag_certificacao",
+    "user_input": "Me mostra o laudo da ADAGRO sobre a certificação orgânica do mel de abelha?",
+    "expected_intent": "consultar_documento_rag",
+    "expected_entities": {
+      "documento": "laudo ADAGRO",
+      "produto": "mel"
+    }
+  },
+  {
+    "eval_id": "test_005_produtor_extrato",
+    "user_input": "Sou o Seu Antônio, queria ver o resumo das vendas da minha safra de mandioca.",
+    "expected_intent": "consultar_extrato_produtor",
+    "expected_entities": {
+      "produtor": "Seu Antônio",
+      "produto": "mandioca"
+    }
+  },
+  {
+    "eval_id": "test_006_pedido_bolinho_tapioca",
+    "user_input": "Vixe, me vê duas porções de bolinho de tapioca com geleia de pimenta!",
+    "expected_intent": "fazer_pedido",
+    "expected_entities": {
+      "item": "bolinho de tapioca",
+      "quantidade": 2,
+      "acompanhamento": "geleia de pimenta"
+    }
+  },
+  {
+    "eval_id": "test_007_rag_origem_produtos",
+    "user_input": "De qual cooperativa da região vem a carne de sol que vocês servem?",
+    "expected_intent": "consultar_documento_rag",
+    "expected_entities": {
+      "item": "carne de sol",
+      "topico": "origem/cooperativa"
+    }
+  },
+  {
+    "eval_id": "test_008_entrega_zona_rural",
+    "user_input": "Manoel, tu faz entrega no Sítio Laranjeiras ou é longe demais?",
+    "expected_intent": "consultar_entrega",
+    "expected_entities": {
+      "localizacao": "Sítio Laranjeiras"
+    }
+  },
+  {
+    "eval_id": "test_009_produtor_previsao_pagamento",
+    "user_input": "Aqui é a Dona Maria. Quando sai o pagamento dos quilos de macaxeira?",
+    "expected_intent": "consultar_extrato_produtor",
+    "expected_entities": {
+      "produtor": "Dona Maria",
+      "produto": "macaxeira"
+    }
+  },
+  {
+    "eval_id": "test_010_duvida_horario",
+    "user_input": "Mainha quer saber até que horas a cozinha fica aberta no domingo.",
+    "expected_intent": "consultar_informacoes_gerais",
+    "expected_entities": {
+      "topico": "horario_funcionamento",
+      "dia": "domingo"
+    }
+  },
+  {
+    "eval_id": "test_011_regionalismo_suco_umbu",
+    "user_input": "Eita noz! Manda uma jarra bem gelada de suco de umbu-cajá pra tabela!",
+    "expected_intent": "fazer_pedido",
+    "expected_entities": {
+      "item": "suco de umbu-cajá",
+      "formato": "jarra"
+    }
+  },
+  {
+    "eval_id": "test_012_rag_vigilancia_sanitaria",
+    "user_input": "Onde posso consultar o certificado de inspeção sanitária do restaurante?",
+    "expected_intent": "consultar_documento_rag",
+    "expected_entities": {
+      "documento": "inspeção sanitária"
+    }
+  },
+  {
+    "eval_id": "test_013_cancelamento_pedido",
+    "user_input": "Ô moço, dá tempo de cancelar o pedido do baião de dois que fiz agorinha?",
+    "expected_intent": "cancelar_pedido",
+    "expected_entities": {
+      "item": "baião de dois"
+    }
+  },
+  {
+    "eval_id": "test_014_produtor_atualizar_estoque",
+    "user_input": "Sou Zé do Mel, colhi mais 20 litros de mel multifloral hoje pra entregar.",
+    "expected_intent": "atualizar_estoque_produtor",
+    "expected_entities": {
+      "produtor": "Zé do Mel",
+      "produto": "mel multifloral",
+      "quantidade": "20 litros"
+    }
+  },
+  {
+    "eval_id": "test_015_pagamento_pix",
+    "user_input": "Massa demais! Vocês aceitam pagamento no PIX ou na maquininha de cartão?",
+    "expected_intent": "consultar_informacoes_gerais",
+    "expected_entities": {
+      "topico": "formas_pagamento"
+    }
+  }
+]
