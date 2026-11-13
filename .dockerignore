@@ -1,0 +1,45 @@
+# Variáveis de ambiente, chaves e credenciais (nunca incluir na imagem)
+.env
+.env.*
+**/.env
+**/.env.*
+**/.env*
+*.pem
+*.key
+*.p12
+*.pfx
+*credentials*.json
+*service-account*.json
+*service_account*.json
+**/adc.json
+.gcloud/
+
+# Ambientes virtuais e controle de versão
+.git/
+.gitignore
+.venv/
+venv/
+env/
+
+# Estado local do ADK e caches Python
+.adk/
+**/.adk/
+__pycache__/
+**/__pycache__/
+*.py[cod]
+*$py.class
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+
+# Documentação, testes locais e arquivos auxiliares
+docs/
+validacao/
+README.md
+Dockerfile
+.dockerignore
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
+*.log
