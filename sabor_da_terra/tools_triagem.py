@@ -67,8 +67,12 @@ def _normalizar_tipo_demanda(valor: str) -> str:
     raise EntradaInvalida(f"tipo_demanda '{valor}' inválido; use um de: {', '.join(sorted(TIPOS_DEMANDA))}.")
 
 
-def _resposta_falha(status: str, mensagem: str, **extras: Any) -> dict[str, Any]:
-    return {"status": status, "mensagem": mensagem, **extras}
+def _resposta_ok(dados: dict[str, Any], mensagem: Optional[str] = None) -> dict[str, Any]:
+    return {"status": "ok", "dados": dados, "mensagem": mensagem}
+
+
+def _resposta_falha(status: str, mensagem: str) -> dict[str, Any]:
+    return {"status": status, "dados": None, "mensagem": mensagem}
 
 
 def _ler_csv(caminho: Path, filtrar_lgpd: bool = False) -> list[dict[str, str]]:
@@ -145,17 +149,30 @@ def avaliar_item_catalogo(
         sazonalidade = { _norm(r["produto"]): r for r in _ler_csv(DADOS_DIR / "sazonalidade.csv") }
 
         if any(g in termo for g in ("variada", "variado", "queijo q vcs", "mais artesanal")):
-            return {"status": "ok", "produto_mencionado": produto, "status_item": "ambiguo", "alertas": [{"codigo": "PRODUTO_AMBIGUO", "severidade": "atencao", "produto_relacionado": produto, "mensagem": f"Termo genérico '{produto}' requer especificação dos itens exatos do catálogo."}]}
+            return _resposta_ok({
+                "produto_mencionado": produto,
+                "status_item": "ambiguo",
+                "alertas": [{"codigo": "PRODUTO_AMBIGUO", "severidade": "atencao", "produto_relacionado": produto, "mensagem": f"Termo genérico '{produto}' requer especificação dos itens exatos do catálogo."}],
+            })
 
         exatos = [r for r in precos if _norm(r["produto"]) == termo]
         matches = exatos or [r for r in precos if termo in _norm(r["produto"])]
 
         if len(matches) > 1:
             opcoes = [r["produto"] for r in matches]
-            return {"status": "ok", "produto_mencionado": produto, "quantidade": quantidade, "unidade": unidade, "exige_organico": exige_organico, "status_item": "ambiguo", "opcoes_catalogo": opcoes, "observacao": f"Opções: {', '.join(opcoes)}", "alertas": [{"codigo": "PRODUTO_AMBIGUO", "severidade": "atencao", "produto_relacionado": produto, "mensagem": f"'{produto}' é ambíguo no catálogo. Opções: {', '.join(opcoes)}."}]}
+            return _resposta_ok({
+                "produto_mencionado": produto,
+                "quantidade": quantidade,
+                "unidade": unidade,
+                "exige_organico": exige_organico,
+                "status_item": "ambiguo",
+                "opcoes_catalogo": opcoes,
+                "observacao": f"Opções: {', '.join(opcoes)}",
+                "alertas": [{"codigo": "PRODUTO_AMBIGUO", "severidade": "atencao", "produto_relacionado": produto, "mensagem": f"'{produto}' é ambíguo no catálogo. Opções: {', '.join(opcoes)}."}],
+            })
 
         if not matches:
-            return {"status": "nao_encontrado", "produto_mencionado": produto, "quantidade": quantidade, "unidade": unidade, "exige_organico": exige_organico, "status_item": "nao_encontrado", "alertas": [{"codigo": "PRODUTO_NAO_ENCONTRADO", "severidade": "atencao", "produto_relacionado": produto, "mensagem": f"'{produto}' não encontrado no catálogo."}]}
+            return _resposta_falha("nao_encontrado", f"'{produto}' não encontrado no catálogo.")
 
         item_p = matches[0]
         nome_cat = item_p["produto"]
@@ -211,20 +228,19 @@ def avaliar_item_catalogo(
         tem_critico = any(a["severidade"] == "critico" and a["codigo"] != "CERTIFICACAO_VENCIDA" for a in alertas) or not aptos
         status_item = "indisponivel" if disp_safra == "nenhuma" else ("parcial" if (quantidade is None or tem_critico or disp_safra == "baixa") else "viavel")
 
-        return {
-            "status": "ok",
+        return _resposta_ok({
             "produto_mencionado": produto, "produto_catalogo": nome_cat, "quantidade": quantidade, "unidade": item_p["unidade"],
             "exige_organico": exige_organico, "status_item": status_item, "disponibilidade_safra": disp_safra,
             "preco_unitario": preco_final, "desconto_atacado_pct": desc_pct, "subtotal_estimado": subtotal,
             "limite_semanal": limite_sem, "produtores_aptos": aptos, "produtores_bloqueados": bloqueados,
             "observacao": obs_unificada or None, "alertas": alertas,
-        }
+        })
     except EntradaInvalida as exc:
-        return _resposta_falha("entrada_invalida", str(exc), produto_mencionado=produto)
+        return _resposta_falha("entrada_invalida", str(exc))
     except OSError as exc:
-        return _resposta_falha("erro", f"Falha ao acessar os dados da cooperativa: {exc}", produto_mencionado=produto)
+        return _resposta_falha("erro", f"Falha ao acessar os dados da cooperativa: {exc}")
     except Exception as exc:  # noqa: BLE001 - a tool nunca deve derrubar o agente
-        return _resposta_falha("erro", f"Erro inesperado na avaliação do item: {exc}", produto_mencionado=produto)
+        return _resposta_falha("erro", f"Erro inesperado na avaliação do item: {exc}")
 
 
 def consultar_produtores_ou_organicos(
@@ -243,11 +259,15 @@ def consultar_produtores_ou_organicos(
                 val = (p.get("validade_certificacao") or "").strip()
                 if _norm(p.get("status", "")) == "ativo" and _norm(p.get("certificacao_organica", "")) == "sim" and val and date.fromisoformat(val) >= dt_ref:
                     organicos.append({"id": p["id"], "nome": p["nome_completo"], "municipio": p["municipio"], "produtos": p["produtos"], "validade_certificacao": val})
-            return {"status": "ok" if organicos else "nao_encontrado", "data_referencia": data_referencia, "produtores_organicos_vigentes": organicos}
+            if not organicos:
+                return _resposta_falha("nao_encontrado", f"Nenhum produtor com certificação orgânica vigente encontrado na data {data_referencia}.")
+            return _resposta_ok({"data_referencia": data_referencia, "produtores_organicos_vigentes": organicos})
 
         q = _norm(termo_busca_produtor or "")
         encontrados = [p for p in produtores if q in _norm(" ".join(p.values()))]
-        return {"status": "ok" if encontrados else "nao_encontrado", "termo_busca": termo_busca_produtor, "produtores_encontrados": encontrados}
+        if not encontrados:
+            return _resposta_falha("nao_encontrado", f"Nenhum produtor encontrado para o termo '{termo_busca_produtor}'.")
+        return _resposta_ok({"termo_busca": termo_busca_produtor, "produtores_encontrados": encontrados})
     except EntradaInvalida as exc:
         return _resposta_falha("entrada_invalida", str(exc))
     except OSError as exc:
@@ -291,28 +311,45 @@ def realizar_triagem_completa_pedido(
             achados = consultar_produtores_ou_organicos(termo_identificacao_produtor or remetente_identificado, data_referencia=data_referencia)
             if achados["status"] in {"entrada_invalida", "erro"}:
                 return achados
-            if achados["produtores_encontrados"]:
-                prod_id = achados["produtores_encontrados"][0]["id"]
+            if achados["status"] == "ok" and achados["dados"]["produtores_encontrados"]:
+                prod_id = achados["dados"]["produtores_encontrados"][0]["id"]
 
         for raw_it in itens:
             it = raw_it.model_dump() if hasattr(raw_it, "model_dump") else dict(raw_it)
+            prod_menc = it.get("produto_mencionado", "")
             qtd = it.get("quantidade")
+            exige_org_item = bool(it.get("exige_organico", False) or exige_organico_global)
             res = avaliar_item_catalogo(
-                produto=it.get("produto_mencionado", ""),
+                produto=prod_menc,
                 quantidade=float(qtd) if qtd is not None else None,
                 unidade=it.get("unidade"),
-                exige_organico=bool(it.get("exige_organico", False) or exige_organico_global),
+                exige_organico=exige_org_item,
                 exige_sie=exige_sie,
                 mes_entrega=mes_entrega,
                 data_referencia=data_referencia,
             )
             if res["status"] in {"entrada_invalida", "erro"}:
                 return res
-            res.pop("status", None)
-            alertas_gerais.extend(res.pop("alertas", []))
-            total = round(total + float(res.get("subtotal_estimado") or 0.0), 2)
-            itens_triados.append(res)
-            if res.get("produto_catalogo") and res.get("quantidade") is None and "quantidade" not in campos_pendentes:
+            if res["status"] == "nao_encontrado":
+                alertas_gerais.append({
+                    "codigo": "PRODUTO_NAO_ENCONTRADO",
+                    "severidade": "atencao",
+                    "produto_relacionado": prod_menc,
+                    "mensagem": res["mensagem"] or f"'{prod_menc}' não encontrado no catálogo.",
+                })
+                itens_triados.append({
+                    "produto_mencionado": prod_menc,
+                    "quantidade": float(qtd) if qtd is not None else None,
+                    "unidade": it.get("unidade"),
+                    "exige_organico": exige_org_item,
+                    "status_item": "nao_encontrado",
+                })
+                continue
+            item_dados = dict(res["dados"])
+            alertas_gerais.extend(item_dados.pop("alertas", []))
+            total = round(total + float(item_dados.get("subtotal_estimado") or 0.0), 2)
+            itens_triados.append(item_dados)
+            if item_dados.get("produto_catalogo") and item_dados.get("quantidade") is None and "quantidade" not in campos_pendentes:
                 campos_pendentes.append("quantidade")
 
         if itens_triados and tipo_demanda in DEMANDAS_COM_ENTREGA and mes_entrega is None:
@@ -342,7 +379,6 @@ def realizar_triagem_completa_pedido(
 
         pendentes_txt = f" | Pendentes: {', '.join(campos_pendentes)}" if campos_pendentes else ""
         saida = {
-            "status": "ok", "mensagem": None,
             "id_pedido": id_pedido, "canal": canal, "remetente_identificado": remetente_identificado,
             "produtor_remetente_id": prod_id, "tipo_cliente": tipo_cliente, "tipo_demanda": tipo_demanda,
             "urgencia": urgencia, "status_viabilidade": status_viab, "data_referencia": data_referencia,
@@ -353,7 +389,7 @@ def realizar_triagem_completa_pedido(
         saida = TriagemPedidoOutput(**saida).model_dump()
         if tool_context is not None and hasattr(tool_context, "state"):
             tool_context.state["resultado_triagem"] = saida
-        return saida
+        return _resposta_ok(saida)
     except EntradaInvalida as exc:
         return _resposta_falha("entrada_invalida", str(exc))
     except OSError as exc:

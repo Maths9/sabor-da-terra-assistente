@@ -70,8 +70,6 @@ class ItemTriado(BaseModel):
 class TriagemPedidoOutput(BaseModel):
     """Contrato final de saída do Módulo de Triagem (output_schema no ADK)."""
 
-    status: StatusExecucao = "ok"
-    mensagem: Optional[str] = None
     id_pedido: Optional[str] = None
     canal: Optional[str] = None
     remetente_identificado: str
