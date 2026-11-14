@@ -1,0 +1,27 @@
+{
+  "modelo_embedding": "gemini-embedding-001",
+  "total_arquivos": 20,
+  "total_chunks": 69,
+  "arquivos_sha256": {
+    "certificacoes/cert_organica_ana_bezerra_P004.txt": "4f6b9982231b4f0c5ec9e8ef5f5bcd1f73814fbf044c7bf7116467bbd83c01de",
+    "certificacoes/cert_organica_antonio_lima_P007.txt": "9d445e9d9e3773fa8a714da185530dcef3488600182a6388d93b0efe3f968fa0",
+    "certificacoes/cert_organica_debora_melo_P018.txt": "6b4f364af037eadf005c7361c8afc177e33887f4d168dfe798bc28d93b3ff64d",
+    "certificacoes/cert_organica_jose_santos_P002.txt": "ae9b97d0ac90b8728ec2151eba3986e67ea472349a236a687a4be0e8a9852c0d",
+    "certificacoes/cert_organica_josefa_souza_P008.txt": "8f04efb3e28fcc093f10b9dab1dcdbee27c2e2dc996c780b7f9bf87bfa15e74c",
+    "certificacoes/cert_organica_luciana_gomes_P012.txt": "4ef076e5cedb8cbbf0f1ab3b015a4323adf45d3ae7e07d182f06fa37dc4ade24",
+    "certificacoes/cert_organica_marcos_rocha_P009.txt": "ea0477b33ada056ebcba0686dbe9c1bf287840d8f9b60a4ff2e475bafa236310",
+    "certificacoes/cert_organica_maria_silva_P001.txt": "42b70587258e96cf9f3ade82c22e8e5161c675fdc746184dbc243b0dc8ad651c",
+    "certificacoes/cert_organica_mariana_cordeiro_P014.txt": "03f1c0ba0cfdb70770d4695f893ad9f5f6be83e745f4debd918cd3a50cce30a3",
+    "certificacoes/inspecao_adagro_2026.txt": "a5ddbe45b4458e6b3cc444ea66b27ebe11b2678def7d751cee986810c61033b8",
+    "certificacoes/laudo_sanitario_apiario_jose_P002.txt": "a8b913c2d0c735809f7785e775355745ed0745288f8c4ebf7faa7ee939bb8295",
+    "certificacoes/laudo_sanitario_queijaria_cicero_P003.txt": "df528cbac87c85fa89ce9ec5f3e9127f7f9bf898d794b962e651a89ad08a6dca",
+    "contratos/contrato_mercado_bom_preco.txt": "49e46cc54b22fe28dccbede9a2c45172f2d48acaeb27cd3d18f6b07808fba5f6",
+    "contratos/contrato_pnae_garanhuns.txt": "61a5d9b4f6976613a0f0bddfb2e3b8730943fe1ea8ae28bdcab34cb8c2c5232d",
+    "contratos/contrato_restaurante_raizes.txt": "a134467d6038b0cfbdcf7499fd7f32b954a602a11dfec60f6cd80a5812b733d6",
+    "fichas_tecnicas/goiaba_paluma.txt": "2bc697ea6d7de9a1f3b77d9b02c8886c6c45181c9bd22495867cc56b937d68d3",
+    "fichas_tecnicas/hortalicas.txt": "ad4c91d19332a12a2b69ceddbdcc3efe0e2b59510307131e82018a073acdaacd",
+    "fichas_tecnicas/mel_silvestre.txt": "f9d7566f6ca7eb9f3c86adf4bac8edf16d325ef64441e993c1141c5d0dad85a8",
+    "fichas_tecnicas/queijo_coalho.txt": "f80618227a052a3013a8e05894e3cde543e47dbb91fc435a7fc065badc38c9c4",
+    "fichas_tecnicas/tuberculos_graos.txt": "fa2f18c7882953511232a3e73c40d72a57c60aa8c70739ad627992eecd0a7f2c"
+  }
+}
