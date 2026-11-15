@@ -1,0 +1,434 @@
+Pasta analisada: /tmp/pacote/sabor-da-terra/data/raw
+
+======================================================================
+TABELA produtores: 18 linhas x 16 colunas
+======================================================================
+id                         str
+nome_completo              str
+cpf                        str
+data_nascimento            str
+telefone                   str
+email                      str
+endereco                   str
+municipio                  str
+produtos                   str
+certificacao_organica      str
+validade_certificacao      str
+chave_pix                  str
+banco                      str
+agencia                  int64
+conta_corrente             str
+status                     str
+
+Nulos: {'validade_certificacao': 9}
+Linhas duplicadas (exatas): 0
+     id                    nome_completo             cpf data_nascimento         telefone                      email                                  endereco  municipio                                       produtos certificacao_organica validade_certificacao                  chave_pix            banco  agencia conta_corrente status
+0  P001  Maria das Graças Silva Ferreira  831.452.674-90      1975-03-12  (87) 99812-3456      maria.graca@email.com           Sítio Boa Vista, Zona Rural s/n  Garanhuns                           goiaba,acerola,manga                   sim            2027-06-15             831.452.674-90  Banco do Brasil      437        28901-3  ativo
+1  P002          José Antônio dos Santos  294.187.563-41      1968-07-22  (87) 99634-7812  jose.santos.mel@email.com  Fazenda Flor do Campo, Rod. PE-218 km 14     Brejão  mel silvestre,mel de abelha jandaíra,própolis                   sim            2027-03-20  jose.santos.mel@email.com         Bradesco     1582      0073921-7  ativo
+2  P003          Cícero Romão de Almeida  723.016.498-55      1982-11-05  (87) 99745-1098    cicero.queijo@gmail.com       Sítio Serra Branca, Dist. São Pedro     Caetés           queijo coalho,queijo manteiga,ricota                   nao                   NaN             723.016.498-55  Caixa Econômica      891     00134578-2  ativo
+
+======================================================================
+TABELA financeiro: 30 linhas x 17 colunas
+======================================================================
+id_transacao              str
+data                      str
+produtor_id               str
+produtor_nome             str
+produtor_cpf              str
+comprador                 str
+tipo                      str
+produto                   str
+quantidade_kg           int64
+valor_unitario        float64
+valor_total           float64
+forma_pagamento           str
+status_pagamento          str
+data_vencimento           str
+data_pagamento            str
+chave_pix_deposito        str
+observacao                str
+
+Nulos: {'data_pagamento': 10, 'observacao': 20}
+Linhas duplicadas (exatas): 0
+[!] Valores repetidos em 'produtor_id': ['P001', 'P003', 'P007', 'P004', 'P005', 'P009', 'P012', 'P017', 'P008', 'P010']
+   id_transacao        data produtor_id                    produtor_nome    produtor_cpf           comprador   tipo        produto  quantidade_kg  valor_unitario  valor_total forma_pagamento status_pagamento data_vencimento data_pagamento chave_pix_deposito observacao
+0  FIN-2026-001  2026-09-02        P001  Maria das Graças Silva Ferreira  831.452.674-90   Mercado Bom Preço  venda  goiaba paluma            120             4.5        540.0  boleto 30 dias             pago      2026-10-02     2026-10-01     831.452.674-90        NaN
+1  FIN-2026-002  2026-09-02        P001  Maria das Graças Silva Ferreira  831.452.674-90   Mercado Bom Preço  venda    manga tommy             80             5.0        400.0  boleto 30 dias             pago      2026-10-02     2026-10-01     831.452.674-90        NaN
+2  FIN-2026-003  2026-09-05        P003          Cícero Romão de Almeida  723.016.498-55  Restaurante Raízes  venda  queijo coalho             45            32.0       1440.0             pix             pago      2026-09-05     2026-09-05     723.016.498-55        NaN
+
+======================================================================
+TABELA sazonalidade: 50 linhas x 14 colunas
+======================================================================
+produto       str
+jan           str
+fev           str
+mar           str
+abr           str
+mai           str
+jun           str
+jul           str
+ago           str
+set           str
+out           str
+nov           str
+dez           str
+observacao    str
+
+Nulos: {'observacao': 1}
+Linhas duplicadas (exatas): 0
+         produto   jan   fev    mar    abr      mai      jun      jul      ago    set    out   nov   dez                            observacao
+0  goiaba paluma  alta  alta  media  media    baixa    baixa    baixa    media  media   alta  alta  alta  Pico dez-mar. Fora de safra jun-ago.
+1    manga tommy  alta  alta  media  baixa  nenhuma  nenhuma  nenhuma  nenhuma  baixa  media  alta  alta  Safra out-mar. Indisponível mai-ago.
+2        acerola  alta  alta   alta  media    media    baixa    baixa    media   alta   alta  alta  alta      Quase o ano todo exceto jun-jul.
+
+======================================================================
+TABELA tabela_precos_outubro_2026: 53 linhas x 7 colunas
+======================================================================
+produto                       str
+unidade                       str
+preco_convencional            str
+preco_organico                str
+desconto_atacado_pct        int64
+volume_minimo_atacado_kg    int64
+observacao                    str
+
+Nulos: {'observacao': 24}
+Linhas duplicadas (exatas): 0
+                  produto unidade preco_convencional preco_organico  desconto_atacado_pct  volume_minimo_atacado_kg                 observacao
+0     goiaba paluma extra      kg               4.00           5.50                    10                       100                        NaN
+1  goiaba paluma especial      kg               3.50           4.50                    10                       100                        NaN
+2             manga tommy      kg               5.00           5.50                    10                       100  Disponível apenas out-mar
+
+======================================================================
+TABELA lotes: 20 linhas x 14 colunas
+======================================================================
+lote_id                       str
+data_colheita                 str
+data_entrega                  str
+produtor_id                   str
+produtor_nome                 str
+produtor_cpf                  str
+produto                       str
+quantidade_kg               int64
+comprador                     str
+pedido_id                     str
+temperatura_transporte_c      str
+validade                      str
+inspecao_visual               str
+observacao                    str
+
+Nulos: {'observacao': 10}
+Linhas duplicadas (exatas): 0
+[!] Valores repetidos em 'produtor_id': ['P003', 'P007', 'P001', 'P004', 'P005', 'P009']
+[!] Valores repetidos em 'pedido_id': ['PED-2026-SEP-003', 'PED-2026-SEP-005', 'PED-2026-SEP-008', 'PED-2026-SEP-012', 'PED-2026-SEP-015', 'PED-2026-SEP-018']
+         lote_id data_colheita data_entrega produtor_id                    produtor_nome    produtor_cpf              produto  quantidade_kg           comprador         pedido_id temperatura_transporte_c    validade inspecao_visual observacao
+0  LOT-2026-0089    2026-09-01   2026-09-02        P003          Cícero Romão de Almeida  723.016.498-55        queijo coalho             45  Restaurante Raízes  PED-2026-SEP-003                        8  2026-10-02        aprovado        NaN
+1  LOT-2026-0090    2026-09-01   2026-09-02        P007      Antônio Carlos Pereira Lima  892.435.176-60  manteiga de garrafa             15  Restaurante Raízes  PED-2026-SEP-003                 ambiente  2027-03-01        aprovado        NaN
+2  LOT-2026-0091    2026-09-02   2026-09-02        P001  Maria das Graças Silva Ferreira  831.452.674-90        goiaba paluma            120   Mercado Bom Preço  PED-2026-SEP-005                 ambiente  2026-09-09        aprovado        NaN
+
+======================================================================
+CHAVES ENTRE TABELAS (colunas com mesmo nome)
+======================================================================
+[!] 'produto': só em financeiro: [] | só em sazonalidade: ['acerola', 'amora', 'açúcar mascavo', 'batata doce', 'berinjela', 'cajá', 'cebolinha', 'cera de abelha']
+[!] 'produto': só em financeiro: ['goiaba paluma', 'pimentão', 'tomate'] | só em tabela_precos_outubro_2026: ['acerola', 'amora', 'açúcar mascavo', 'batata doce', 'berinjela', 'cajá', 'cebolinha', 'cera de abelha']
+[!] 'produtor_id': só em financeiro: ['P006', 'P011', 'P014', 'P016'] | só em lotes: []
+[!] 'produtor_cpf': só em financeiro: ['345.012.678-90', '567.341.298-16', '678.901.234-56', '789.012.345-68'] | só em lotes: []
+[!] 'produto': só em financeiro: ['banana prata', 'geleia de frutas', 'morango', 'ovos caipira', 'pimentão', 'pólen', 'rapadura'] | só em lotes: []
+[!] 'produtor_nome': só em financeiro: ['Mariana de Fátima Cordeiro', 'Pedro Henrique Albuquerque', 'Severina Maria do Nascimento', 'Terezinha de Jesus Oliveira'] | só em lotes: []
+[!] 'quantidade_kg': só em financeiro: ['20', '5', '60', '8'] | só em lotes: []
+[!] 'produto': só em sazonalidade: ['goiaba paluma', 'pimentão', 'tomate'] | só em tabela_precos_outubro_2026: ['goiaba paluma especial', 'goiaba paluma extra', 'pimentão colorido', 'pimentão verde', 'tomate cereja', 'tomate santa cruz']
+[!] 'produto': só em sazonalidade: ['acerola', 'amora', 'açúcar mascavo', 'banana prata', 'batata doce', 'berinjela', 'cajá', 'cebolinha'] | só em lotes: []
+[!] 'produto': só em tabela_precos_outubro_2026: ['acerola', 'amora', 'açúcar mascavo', 'banana prata', 'batata doce', 'berinjela', 'cajá', 'cebolinha'] | só em lotes: ['goiaba paluma', 'tomate']
+
+======================================================================
+ARMADILHA: lote 2024-089
+======================================================================
+[!] '2024-089' NÃO existe em nenhuma tabela. Conferir pedidos.json e documentos.
+
+======================================================================
+ARMADILHA: certificações (produtores.csv) vencidas / a vencer em 60 dias
+======================================================================
+Coluna validade_certificacao: vencidas=1 a vencer<=60d=1
+     id          nome_completo             cpf data_nascimento         telefone                           email                 endereco    municipio                                       produtos certificacao_organica validade_certificacao        chave_pix            banco  agencia conta_corrente status
+7  P008  Josefa Alves de Souza  345.678.912-34      1988-12-01  (87) 99845-6623  josefa.alves.souza@hotmail.com  Sítio Alves, Zona Rural  Águas Belas  mel silvestre,geleia de frutas,doce de goiaba                   sim            2026-09-30  (87) 99845-6623  Caixa Econômica      891     00298731-0  ativo
+     id               nome_completo             cpf data_nascimento         telefone                    email                             endereco municipio                                       produtos certificacao_organica validade_certificacao        chave_pix              banco  agencia conta_corrente status
+3  P004  Ana Lúcia Bezerra da Costa  456.923.817-03      1990-01-30  (87) 99901-5567  ana.bezerra@hotmail.com  Chácara Verde Esperança, Zona Rural    Jucati  alface,coentro,cebolinha,rúcula,tomate cereja                   sim            2026-12-01  (87) 99901-5567  Banco do Nordeste       23        41087-6  ativo
+
+Obs.: documentos já indicam P008 vencida (30/09/2026) e P004 vence 01/12/2026.
+
+======================================================================
+ARMADILHA: pendências financeiras
+======================================================================
+status_pagamento
+pago        20
+pendente    10
+[!] 10 transações pendentes/atrasadas
+             count     sum
+produtor_id               
+P003             2  6020.0
+P007             1  2480.0
+P002             1  1650.0
+P016             1  1200.0
+P004             2  1020.0
+P010             2   610.0
+P013             1   400.0
+
+======================================================================
+ARMADILHA: dados bancários / PII e contas repetidas
+======================================================================
+[!] produtores: colunas sensíveis ['cpf', 'chave_pix', 'banco', 'agencia', 'conta_corrente'] (mascarar antes de indexar/expor)
+[!] financeiro: colunas sensíveis ['produtor_cpf', 'chave_pix_deposito'] (mascarar antes de indexar/expor)
+[!] valor repetido em 'chave_pix_deposito':
+     id_transacao        data produtor_id                    produtor_nome    produtor_cpf                       comprador   tipo              produto  quantidade_kg  valor_unitario  valor_total  forma_pagamento status_pagamento data_vencimento data_pagamento           chave_pix_deposito                 observacao
+0   FIN-2026-001  2026-09-02        P001  Maria das Graças Silva Ferreira  831.452.674-90               Mercado Bom Preço  venda        goiaba paluma            120             4.5        540.0   boleto 30 dias             pago      2026-10-02     2026-10-01               831.452.674-90                        NaN
+1   FIN-2026-002  2026-09-02        P001  Maria das Graças Silva Ferreira  831.452.674-90               Mercado Bom Preço  venda          manga tommy             80             5.0        400.0   boleto 30 dias             pago      2026-10-02     2026-10-01               831.452.674-90                        NaN
+2   FIN-2026-003  2026-09-05        P003          Cícero Romão de Almeida  723.016.498-55              Restaurante Raízes  venda        queijo coalho             45            32.0       1440.0              pix             pago      2026-09-05     2026-09-05               723.016.498-55                        NaN
+3   FIN-2026-004  2026-09-05        P007      Antônio Carlos Pereira Lima  892.435.176-60              Restaurante Raízes  venda  manteiga de garrafa             15            45.0        675.0              pix             pago      2026-09-05     2026-09-05               892.435.176-60                        NaN
+5   FIN-2026-006  2026-09-08        P004       Ana Lúcia Bezerra da Costa  456.923.817-03  Prefeitura de Garanhuns - PNAE  venda               alface            300             2.5        750.0  empenho 45 dias         pendente      2026-10-23            NaN              (87) 99901-5567        Empenho 2026NE00234
+6   FIN-2026-007  2026-09-08        P004       Ana Lúcia Bezerra da Costa  456.923.817-03  Prefeitura de Garanhuns - PNAE  venda              coentro            150             1.8        270.0  empenho 45 dias         pendente      2026-10-23            NaN              (87) 99901-5567        Empenho 2026NE00234
+7   FIN-2026-008  2026-09-10        P005      Francisco de Assis Cordeiro  118.764.532-89               Mercado Bom Preço  venda            macaxeira            200             3.2        640.0   boleto 30 dias             pago      2026-10-10     2026-10-12               118.764.532-89  Pago com 2 dias de atraso
+8   FIN-2026-009  2026-09-10        P005      Francisco de Assis Cordeiro  118.764.532-89               Mercado Bom Preço  venda               inhame            100             4.8        480.0   boleto 30 dias             pago      2026-10-10     2026-10-12               118.764.532-89  Pago com 2 dias de atraso
+10  FIN-2026-011  2026-09-15        P009         Marcos Vinícius da Rocha  671.234.589-07          Hospital São Francisco  venda               alface             80             2.8        224.0   boleto 30 dias             pago      2026-10-15     2026-10-15  marcos.rocha.agro@gmail.com                        NaN
+11  FIN-2026-012  2026-09-15        P009         Marcos Vinícius da Rocha  671.234.589-07          Hospital São Francisco  venda                couve             40             3.5        140.0   boleto 30 dias             pago      2026-10-15     2026-10-15  marcos.rocha.agro@gmail.com                        NaN
+12  FIN-2026-013  2026-09-18        P003          Cícero Romão de Almeida  723.016.498-55           Rede SuperBom Atacado  venda        queijo coalho            150            30.0       4500.0   boleto 30 dias         pendente      2026-10-18            NaN               723.016.498-55          ATRASADO - cobrar
+13  FIN-2026-014  2026-09-18        P003          Cícero Romão de Almeida  723.016.498-55           Rede SuperBom Atacado  venda      queijo manteiga             40            38.0       1520.0   boleto 30 dias         pendente      2026-10-18            NaN               723.016.498-55          ATRASADO - cobrar
+14  FIN-2026-015  2026-09-20        P001  Maria das Graças Silva Ferreira  831.452.674-90              Restaurante Raízes  venda        goiaba paluma             30             5.0        150.0              pix             pago      2026-09-20     2026-09-20               831.452.674-90                        NaN
+15  FIN-2026-016  2026-09-22        P012           Luciana Ferreira Gomes  912.345.678-01               Mercado Bom Preço  venda               tomate             80             6.5        520.0   boleto 30 dias             pago      2026-10-22     2026-10-22               912.345.678-01                        NaN
+16  FIN-2026-017  2026-09-22        P012           Luciana Ferreira Gomes  912.345.678-01               Mercado Bom Preço  venda             pimentão             30             7.0        210.0   boleto 30 dias             pago      2026-10-22     2026-10-22               912.345.678-01                        NaN
+17  FIN-2026-018  2026-09-25        P017     Wellington da Silva Monteiro  567.890.123-34       Hotel Fazenda Serra Negra  venda       frango caipira             50            28.0       1400.0    transferência             pago      2026-09-25     2026-09-26               567.890.123-34                        NaN
+18  FIN-2026-019  2026-09-25        P017     Wellington da Silva Monteiro  567.890.123-34       Hotel Fazenda Serra Negra  venda         ovos caipira             40            18.0        720.0    transferência             pago      2026-09-25     2026-09-26               567.890.123-34            Preço por dúzia
+20  FIN-2026-021  2026-10-01        P008            Josefa Alves de Souza  345.678.912-34              Restaurante Raízes  venda        mel silvestre             10            58.0        580.0              pix             pago      2026-10-01     2026-10-01              (87) 99845-6623                        NaN
+21  FIN-2026-022  2026-10-01        P008            Josefa Alves de Souza  345.678.912-34              Restaurante Raízes  venda     geleia de frutas              8            35.0        280.0              pix             pago      2026-10-01     2026-10-01              (87) 99845-6623                        NaN
+23  FIN-2026-024  2026-10-10        P010          Raimunda Nonata de Lima  234.891.567-72               Mercado Bom Preço  venda        goiaba paluma             80             4.5        360.0   boleto 30 dias         pendente      2026-11-10            NaN               234.891.567-72                        NaN
+24  FIN-2026-025  2026-10-10        P010          Raimunda Nonata de Lima  234.891.567-72               Mercado Bom Preço  venda          manga tommy             50             5.0        250.0   boleto 30 dias         pendente      2026-11-10            NaN               234.891.567-72                        NaN
+27  FIN-2026-028  2026-10-20        P018          Débora Cristina de Melo  890.123.456-78        Feira Orgânica do Recife  venda        mel silvestre             15            60.0        900.0              pix             pago      2026-10-20     2026-10-20               890.123.456-78                        NaN
+28  FIN-2026-029  2026-10-20        P018          Débora Cristina de Melo  890.123.456-78        Feira Orgânica do Recife  venda                pólen              5            85.0        425.0              pix             pago      2026-10-20     2026-10-20               890.123.456-78                        NaN
+29  FIN-2026-030  2026-10-25        P007      Antônio Carlos Pereira Lima  892.435.176-60  Prefeitura de Garanhuns - PNAE  venda        queijo coalho             80            31.0       2480.0  empenho 45 dias         pendente      2026-12-09            NaN               892.435.176-60        Empenho 2026NE00345
+[!] lotes: colunas sensíveis ['produtor_cpf'] (mascarar antes de indexar/expor)
+
+======================================================================
+ARMADILHA: nomes de produto diferentes
+======================================================================
+  acerola                             <- ['sazonalidade:acerola', 'tabela_precos_outubro_2026:acerola']
+  acucar mascavo                      <- ['sazonalidade:açúcar mascavo', 'tabela_precos_outubro_2026:açúcar mascavo']
+  alface                              <- ['financeiro:alface', 'lotes:alface', 'sazonalidade:alface', 'tabela_precos_outubro_2026:alface']
+  alface,coentro,cebolinha,rucula,tomate cereja <- ['produtores:alface,coentro,cebolinha,rúcula,tomate cereja']
+  alface,rucula,espinafre,couve,hortela,manjericao <- ['produtores:alface,rúcula,espinafre,couve,hortelã,manjericão']
+  amora                               <- ['sazonalidade:amora', 'tabela_precos_outubro_2026:amora']
+  banana prata                        <- ['financeiro:banana prata', 'sazonalidade:banana prata', 'tabela_precos_outubro_2026:banana prata']
+  banana,maracuja,coco verde          <- ['produtores:banana,maracujá,coco verde']
+  batata doce                         <- ['sazonalidade:batata doce', 'tabela_precos_outubro_2026:batata doce']
+  berinjela                           <- ['sazonalidade:berinjela', 'tabela_precos_outubro_2026:berinjela']
+  caja                                <- ['sazonalidade:cajá', 'tabela_precos_outubro_2026:cajá']
+  cebolinha                           <- ['sazonalidade:cebolinha', 'tabela_precos_outubro_2026:cebolinha']
+  cera de abelha                      <- ['sazonalidade:cera de abelha', 'tabela_precos_outubro_2026:cera de abelha']
+  coco verde                          <- ['sazonalidade:coco verde', 'tabela_precos_outubro_2026:coco verde']
+  coentro                             <- ['financeiro:coentro', 'lotes:coentro', 'sazonalidade:coentro', 'tabela_precos_outubro_2026:coentro']
+  couve                               <- ['financeiro:couve', 'lotes:couve', 'sazonalidade:couve', 'tabela_precos_outubro_2026:couve']
+  doce de goiaba                      <- ['sazonalidade:doce de goiaba', 'tabela_precos_outubro_2026:doce de goiaba']
+  espinafre                           <- ['sazonalidade:espinafre', 'tabela_precos_outubro_2026:espinafre']
+  farinha de mandioca                 <- ['financeiro:farinha de mandioca', 'lotes:farinha de mandioca', 'sazonalidade:farinha de mandioca', 'tabela_precos_outubro_2026:farinha de mandioca']
+  farinha de mandioca,tapioca,goma    <- ['produtores:farinha de mandioca,tapioca,goma']
+  framboesa                           <- ['sazonalidade:framboesa', 'tabela_precos_outubro_2026:framboesa']
+  frango caipira                      <- ['financeiro:frango caipira', 'lotes:frango caipira', 'sazonalidade:frango caipira', 'tabela_precos_outubro_2026:frango caipira']
+  frango caipira,ovos caipira         <- ['produtores:frango caipira,ovos caipira']
+  geleia de frutas                    <- ['financeiro:geleia de frutas', 'sazonalidade:geleia de frutas', 'tabela_precos_outubro_2026:geleia de frutas']
+  goiaba paluma                       <- ['financeiro:goiaba paluma', 'lotes:goiaba paluma', 'sazonalidade:goiaba paluma']
+  goiaba paluma especial              <- ['tabela_precos_outubro_2026:goiaba paluma especial']
+  goiaba paluma extra                 <- ['tabela_precos_outubro_2026:goiaba paluma extra']
+  goiaba,acerola,manga                <- ['produtores:goiaba,acerola,manga']
+  goiaba,manga,caja,umbu,graviola     <- ['produtores:goiaba,manga,cajá,umbu,graviola']
+  graviola                            <- ['sazonalidade:graviola', 'tabela_precos_outubro_2026:graviola']
+  hortela                             <- ['sazonalidade:hortelã', 'tabela_precos_outubro_2026:hortelã']
+  inhame                              <- ['financeiro:inhame', 'lotes:inhame', 'sazonalidade:inhame', 'tabela_precos_outubro_2026:inhame']
+  iogurte natural                     <- ['sazonalidade:iogurte natural', 'tabela_precos_outubro_2026:iogurte natural']
+  leite                               <- ['sazonalidade:leite', 'tabela_precos_outubro_2026:leite']
+  leite,queijo coalho,iogurte natural <- ['produtores:leite,queijo coalho,iogurte natural']
+  macaxeira                           <- ['financeiro:macaxeira', 'lotes:macaxeira', 'sazonalidade:macaxeira', 'tabela_precos_outubro_2026:macaxeira']
+  macaxeira,feijao,milho,fava         <- ['produtores:macaxeira,feijão,milho,fava']
+  macaxeira,inhame,batata doce        <- ['produtores:macaxeira,inhame,batata doce']
+  manga tommy                         <- ['financeiro:manga tommy', 'lotes:manga tommy', 'sazonalidade:manga tommy', 'tabela_precos_outubro_2026:manga tommy']
+  manjericao                          <- ['sazonalidade:manjericão', 'tabela_precos_outubro_2026:manjericão']
+  manteiga de garrafa                 <- ['financeiro:manteiga de garrafa', 'lotes:manteiga de garrafa', 'sazonalidade:manteiga de garrafa', 'tabela_precos_outubro_2026:manteiga de garrafa']
+  maracuja                            <- ['sazonalidade:maracujá', 'tabela_precos_outubro_2026:maracujá']
+  mel de jandaira                     <- ['sazonalidade:mel de jandaíra', 'tabela_precos_outubro_2026:mel de jandaíra']
+  mel silvestre                       <- ['financeiro:mel silvestre', 'lotes:mel silvestre', 'sazonalidade:mel silvestre', 'tabela_precos_outubro_2026:mel silvestre']
+  mel silvestre,cera de abelha,polen  <- ['produtores:mel silvestre,cera de abelha,pólen']
+  mel silvestre,geleia de frutas,doce de goiaba <- ['produtores:mel silvestre,geleia de frutas,doce de goiaba']
+  mel silvestre,mel de abelha jandaira,propolis <- ['produtores:mel silvestre,mel de abelha jandaíra,própolis']
+  melado                              <- ['sazonalidade:melado', 'tabela_precos_outubro_2026:melado']
+  mirtilo                             <- ['sazonalidade:mirtilo', 'tabela_precos_outubro_2026:mirtilo']
+  morango                             <- ['financeiro:morango', 'sazonalidade:morango', 'tabela_precos_outubro_2026:morango']
+  morango,amora,mirtilo,framboesa     <- ['produtores:morango,amora,mirtilo,framboesa']
+  nata                                <- ['sazonalidade:nata', 'tabela_precos_outubro_2026:nata']
+  ovos caipira                        <- ['financeiro:ovos caipira', 'sazonalidade:ovos caipira', 'tabela_precos_outubro_2026:ovos caipira']
+  pepino                              <- ['sazonalidade:pepino', 'tabela_precos_outubro_2026:pepino']
+  pimentao                            <- ['financeiro:pimentão', 'sazonalidade:pimentão']
+  pimentao colorido                   <- ['tabela_precos_outubro_2026:pimentão colorido']
+  pimentao verde                      <- ['tabela_precos_outubro_2026:pimentão verde']
+  polen                               <- ['financeiro:pólen', 'sazonalidade:pólen', 'tabela_precos_outubro_2026:pólen']
+  propolis                            <- ['sazonalidade:própolis', 'tabela_precos_outubro_2026:própolis']
+  queijo coalho                       <- ['financeiro:queijo coalho', 'lotes:queijo coalho', 'sazonalidade:queijo coalho', 'tabela_precos_outubro_2026:queijo coalho']
+  queijo coalho,manteiga de garrafa,nata <- ['produtores:queijo coalho,manteiga de garrafa,nata']
+  queijo coalho,queijo manteiga,ricota <- ['produtores:queijo coalho,queijo manteiga,ricota']
+  queijo manteiga                     <- ['financeiro:queijo manteiga', 'lotes:queijo manteiga', 'sazonalidade:queijo manteiga', 'tabela_precos_outubro_2026:queijo manteiga']
+  quiabo                              <- ['sazonalidade:quiabo', 'tabela_precos_outubro_2026:quiabo']
+  rapadura                            <- ['financeiro:rapadura', 'sazonalidade:rapadura', 'tabela_precos_outubro_2026:rapadura']
+  rapadura,acucar mascavo,melado      <- ['produtores:rapadura,açúcar mascavo,melado']
+  ricota                              <- ['sazonalidade:ricota', 'tabela_precos_outubro_2026:ricota']
+  rucula                              <- ['sazonalidade:rúcula', 'tabela_precos_outubro_2026:rúcula']
+  tapioca/goma                        <- ['sazonalidade:tapioca/goma', 'tabela_precos_outubro_2026:tapioca/goma']
+  tomate                              <- ['financeiro:tomate', 'lotes:tomate', 'sazonalidade:tomate']
+  tomate cereja                       <- ['tabela_precos_outubro_2026:tomate cereja']
+  tomate santa cruz                   <- ['tabela_precos_outubro_2026:tomate santa cruz']
+  tomate,pimentao,pepino,berinjela,quiabo <- ['produtores:tomate,pimentão,pepino,berinjela,quiabo']
+  umbu                                <- ['sazonalidade:umbu', 'tabela_precos_outubro_2026:umbu']
+Compare com os nomes dos contratos/fichas (ex.: 'Goiaba paluma', 'Queijo coalho', 'Mel silvestre').
+
+======================================================================
+ARMADILHA: preço da tabela x contrato PNAE
+======================================================================
+
+[contrato PNAE banana prata: R$ 3.80]
+        produto unidade preco_convencional preco_organico  desconto_atacado_pct  volume_minimo_atacado_kg             observacao
+4  banana prata      kg               3.50            n/d                     8                        50  Sem produtor orgânico
+
+[contrato PNAE goiaba: R$ 5.20]
+                   produto unidade preco_convencional preco_organico  desconto_atacado_pct  volume_minimo_atacado_kg observacao
+0      goiaba paluma extra      kg               4.00           5.50                    10                       100        NaN
+1   goiaba paluma especial      kg               3.50           4.50                    10                       100        NaN
+50          doce de goiaba      kg              25.00          28.00                     0                         0       P008
+
+[contrato PNAE manga: R$ 5.50]
+       produto unidade preco_convencional preco_organico  desconto_atacado_pct  volume_minimo_atacado_kg                 observacao
+2  manga tommy      kg               5.00           5.50                    10                       100  Disponível apenas out-mar
+
+[contrato PNAE maracuja: R$ 6.00]
+    produto unidade preco_convencional preco_organico  desconto_atacado_pct  volume_minimo_atacado_kg             observacao
+5  maracujá      kg               6.00            n/d                     8                        50  Sem produtor orgânico
+
+[contrato PNAE macaxeira: R$ 3.50]
+      produto unidade preco_convencional preco_organico  desconto_atacado_pct  volume_minimo_atacado_kg observacao
+41  macaxeira      kg               3.20            n/d                    10                       100        NaN
+
+[contrato PNAE inhame: R$ 5.00]
+   produto unidade preco_convencional preco_organico  desconto_atacado_pct  volume_minimo_atacado_kg    observacao
+42  inhame      kg               4.80            n/d                    10                        50  Pico abr-jul
+
+[contrato PNAE batata doce: R$ 4.00]
+        produto unidade preco_convencional preco_organico  desconto_atacado_pct  volume_minimo_atacado_kg observacao
+43  batata doce      kg               4.00            n/d                    10                        50        NaN
+
+[contrato PNAE alface: R$ 2.80]
+   produto  unidade preco_convencional preco_organico  desconto_atacado_pct  volume_minimo_atacado_kg observacao
+26  alface  unidade               2.50           2.80                     5                        50        NaN
+
+[contrato PNAE coentro: R$ 2.00]
+    produto unidade preco_convencional preco_organico  desconto_atacado_pct  volume_minimo_atacado_kg observacao
+27  coentro    maço               1.80           2.00                     5                        50        NaN
+
+[contrato PNAE tomate: R$ 7.00]
+              produto unidade preco_convencional preco_organico  desconto_atacado_pct  volume_minimo_atacado_kg   observacao
+34  tomate santa cruz      kg               6.00           7.00                     5                        50          NaN
+35      tomate cereja      kg              10.00          12.00                     0                         0  Apenas P004
+
+[contrato PNAE queijo coalho: R$ 34.00]
+          produto unidade preco_convencional preco_organico  desconto_atacado_pct  volume_minimo_atacado_kg observacao
+14  queijo coalho      kg              32.00          38.00                     5                       100        NaN
+
+[contrato PNAE mel silvestre: R$ 58.00]
+          produto unidade preco_convencional preco_organico  desconto_atacado_pct  volume_minimo_atacado_kg observacao
+21  mel silvestre      kg              48.00          58.00                     8                        20        NaN
+
+[contrato PNAE ovos: R$ 18.00]
+         produto unidade preco_convencional preco_organico  desconto_atacado_pct  volume_minimo_atacado_kg                 observacao
+52  ovos caipira   dúzia              18.00            n/d                     5                        50  dúzias para atacado. P017
+
+[contrato PNAE frango: R$ 29.00]
+           produto unidade preco_convencional preco_organico  desconto_atacado_pct  volume_minimo_atacado_kg                                   observacao
+51  frango caipira      kg              28.00            n/d                     5                        30  ATENÇÃO: P017 sem SIE - venda direta apenas
+
+======================================================================
+SAZONALIDADE: produtos com 'nenhuma' em nov/dez (contratos ativos)
+======================================================================
+        produto      jan      fev      mar      abr      mai      jun      jul      ago      set      out      nov      dez                            observacao
+1   manga tommy     alta     alta    media    baixa  nenhuma  nenhuma  nenhuma  nenhuma    baixa    media     alta     alta  Safra out-mar. Indisponível mai-ago.
+5          cajá  nenhuma  nenhuma  nenhuma  nenhuma  nenhuma  nenhuma  nenhuma  nenhuma  nenhuma  nenhuma    baixa    media           Safra muito curta: nov-jan.
+6          umbu  nenhuma    media     alta     alta    media  nenhuma  nenhuma  nenhuma  nenhuma  nenhuma  nenhuma  nenhuma                 Safra fev-mai apenas.
+10      mirtilo  nenhuma  nenhuma  nenhuma  nenhuma    media     alta     alta     alta    media  nenhuma  nenhuma  nenhuma                  Safra curta mai-set.
+11    framboesa  nenhuma  nenhuma  nenhuma  nenhuma    baixa    media     alta     alta    media  nenhuma  nenhuma  nenhuma      Safra jun-set. Produção pequena.
+
+======================================================================
+LOTES: lotes de P008 depois de 30/09/2026 (orgânico?)
+======================================================================
+          lote_id data_colheita data_entrega produtor_id          produtor_nome    produtor_cpf        produto  quantidade_kg           comprador         pedido_id temperatura_transporte_c    validade inspecao_visual                   observacao
+15  LOT-2026-0104    2026-10-01   2026-10-01        P008  Josefa Alves de Souza  345.678.912-34  mel silvestre             10  Restaurante Raízes  PED-2026-OCT-001                 ambiente  2028-10-01        aprovado  Certificação orgânica anexa
+
+======================================================================
+pedidos.json
+======================================================================
+(15, 7) 
+Colunas: ['id', 'data_recebimento', 'canal', 'remetente', 'comprador', 'mensagem_original', 'status']
+Nulos: {}
+
+======================================================================
+CHECAGENS ESPECÍFICAS (usam os nomes de colunas reais)
+======================================================================
+
+[1] Vendas DEPOIS do vencimento da certificação orgânica do produtor
+    id_transacao produtor_id        data           produto  valor_unitario       venc
+20  FIN-2026-021        P008  2026-10-01     mel silvestre            58.0 2026-09-30
+21  FIN-2026-022        P008  2026-10-01  geleia de frutas            35.0 2026-09-30
+
+[2] Produtores com flag 'sim' mas validade vencida/<=60d (a flag sozinha engana)
+     id               nome_completo validade_certificacao
+3  P004  Ana Lúcia Bezerra da Costa            2026-12-01
+7  P008       Josefa Alves de Souza            2026-09-30
+
+[3] Pendentes vencidos em 2026-11-12
+    id_transacao produtor_id                       comprador  valor_total  atraso
+4   FIN-2026-005        P002  Prefeitura de Garanhuns - PNAE       1650.0      20
+5   FIN-2026-006        P004  Prefeitura de Garanhuns - PNAE        750.0      20
+6   FIN-2026-007        P004  Prefeitura de Garanhuns - PNAE        270.0      20
+12  FIN-2026-013        P003           Rede SuperBom Atacado       4500.0      25
+13  FIN-2026-014        P003           Rede SuperBom Atacado       1520.0      25
+22  FIN-2026-023        P016               Mercado Bom Preço       1200.0       7
+23  FIN-2026-024        P010               Mercado Bom Preço        360.0       2
+24  FIN-2026-025        P010               Mercado Bom Preço        250.0       2
+Total pendente: R$ 13380.0 | vencido: R$ 10500.0
+
+[4] Vendas (financeiro) sem lote correspondente = buraco de rastreabilidade
+    id_transacao produtor_id           produto  quantidade_kg                  comprador
+9   FIN-2026-010        P006      banana prata             60        Lanchonete da Feira
+14  FIN-2026-015        P001     goiaba paluma             30         Restaurante Raízes
+16  FIN-2026-017        P012          pimentão             30          Mercado Bom Preço
+18  FIN-2026-019        P017      ovos caipira             40  Hotel Fazenda Serra Negra
+19  FIN-2026-020        P014           morango             30        Sorveteria Tropical
+21  FIN-2026-022        P008  geleia de frutas              8         Restaurante Raízes
+22  FIN-2026-023        P016          rapadura            100          Mercado Bom Preço
+24  FIN-2026-025        P010       manga tommy             50          Mercado Bom Preço
+25  FIN-2026-026        P011     queijo coalho             20        Lanchonete da Feira
+28  FIN-2026-029        P018             pólen              5   Feira Orgânica do Recife
+
+[5] Folhosas transportadas acima de 5 C (ficha: 2-5 C)
+          lote_id  produto temperatura_transporte_c
+5   LOT-2026-0094   alface                       12
+6   LOT-2026-0095  coentro                       12
+9   LOT-2026-0098   alface                       10
+10  LOT-2026-0099    couve                       10
+
+[6] Preço pago x tabela (convencional/orgânico) — divergências
+  FIN-2026-005 P002 mel silvestre: pago 55.0 | tabela conv=[48.0] org=[58.0]
+  FIN-2026-012 P009 couve: pago 3.5 | tabela conv=[2.5] org=[3.0]
+  FIN-2026-013 P003 queijo coalho: pago 30.0 | tabela conv=[32.0] org=[38.0]
+  FIN-2026-015 P001 goiaba paluma: pago 5.0 | tabela conv=[3.5, 4.0] org=[4.5, 5.5]
+  FIN-2026-016 P012 tomate: pago 6.5 | tabela conv=[6.0, 10.0] org=[7.0, 12.0]
+  FIN-2026-026 P011 queijo coalho: pago 33.0 | tabela conv=[32.0] org=[38.0]
+  FIN-2026-028 P018 mel silvestre: pago 60.0 | tabela conv=[48.0] org=[58.0]
+  FIN-2026-030 P007 queijo coalho: pago 31.0 | tabela conv=[32.0] org=[38.0]
+
+[7] IDs de pedido: pedidos.json x lotes (precisam ser a mesma chave)
+pedidos.json: ['PED-2026-001', 'PED-2026-002', 'PED-2026-003'] ... | lotes: ['PED-2026-OCT-001', 'PED-2026-OCT-005', 'PED-2026-OCT-008'] ... | em comum: set()
+
+[8] CPFs com dígito verificador válido (dados simulados costumam falhar)
+1 de 18

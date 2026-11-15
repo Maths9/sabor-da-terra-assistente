@@ -1,0 +1,4 @@
+# RAG (ChromaDB + Gemini). Se o chromadb nao instalar no seu Python, use --backend memory
+# ou instale o Python 3.12/3.13.
+chromadb
+google-genai
