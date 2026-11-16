@@ -1,4 +1,5 @@
 import type { ChatMessage } from "../../types";
+import MarkdownContent from "./MarkdownContent";
 
 export default function MessageBubble({ message }: { message: ChatMessage }) {
   const isUser = message.role === "user";
@@ -8,7 +9,11 @@ export default function MessageBubble({ message }: { message: ChatMessage }) {
     <div className={`msg ${isUser ? "msg-user" : "msg-bot"}`}>
       {!isUser && <span className="avatar" aria-hidden>🌱</span>}
       <div className={`bubble${message.erro ? " bubble-error" : ""}`}>
-        <div>{message.content}</div>
+        {isUser ? (
+          <div className="msg-plain">{message.content}</div>
+        ) : (
+          <MarkdownContent content={message.content} />
+        )}
         {fontes.length > 0 && (
           <div className="fontes">
             <small>Fontes consultadas:</small>
