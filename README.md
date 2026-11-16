@@ -193,11 +193,45 @@ docker stop <NOME_OU_ID_DO_CONTAINER>  # para o container (com --rm, já remove 
 docker rm <NOME_OU_ID_DO_CONTAINER>    # remove manualmente caso tenha subido sem --rm
 ```
 
-### 7. Notas para deploy no Cloud Run (T39c) e conferência pré-commit
+### 7. Subir no Cloud Run usando o `Dockerfile` (T39c)
 
-- O container executa como usuário não-root (`appuser`), com `--no-reload` e `ADK_DISABLE_LOCAL_STORAGE=1`, comportando-se igual localmente e no Cloud Run.
+> **Importante:** **não use `adk deploy`** para subir este projeto — ele gera um `Dockerfile` próprio que copia apenas a pasta do agente (deixando dados/índices externos fora da imagem, além de ignorar o `requirements.txt` da raiz e a API `/api/*` do frontend). Use o `Dockerfile` da raiz conforme os passos abaixo, e garanta que a pasta do índice (`sabor_da_terra/rag_store/`) não esteja no `.gitignore` nem no `.dockerignore`.
+
+1. **Pré-requisitos:** estar autenticado no Google Cloud CLI (`gcloud auth login`), com faturamento ativo e APIs do Cloud Run / Cloud Build habilitadas no projeto.
+2. **Subir direto da raiz usando o `Dockerfile`** (escolha o modo de autenticação):
+
+**Opção A — Com Vertex AI (usa a conta de serviço do Cloud Run, sem API key):**
+
+```bash
+gcloud run deploy sabor-da-terra-assistente \
+  --source . \
+  --project SEU_PROJETO_GCP \
+  --region us-central1 \
+  --port 8080 \
+  --allow-unauthenticated \
+  --set-env-vars "GOOGLE_GENAI_USE_VERTEXAI=TRUE,GOOGLE_CLOUD_PROJECT=SEU_PROJETO_GCP,GOOGLE_CLOUD_LOCATION=global"
+```
+
+**Opção B — Com Google AI Studio (`GOOGLE_API_KEY` via Secret Manager):**
+
+```bash
+gcloud run deploy sabor-da-terra-assistente \
+  --source . \
+  --project SEU_PROJETO_GCP \
+  --region us-central1 \
+  --port 8080 \
+  --allow-unauthenticated \
+  --set-env-vars "GOOGLE_GENAI_USE_VERTEXAI=FALSE" \
+  --set-secrets "GOOGLE_API_KEY=NOME_DO_SEGREDO:latest"
+```
+
+*(Opcional: se já tiver gerado a imagem localmente na etapa 2 e enviado ao Artifact Registry, substitua `--source .` por `--image <URL_DA_IMAGEM_NO_ARTIFACT_REGISTRY>` e inclua `,ALLOW_ORIGINS=https://url-do-frontend` em `--set-env-vars` quando publicar o frontend.)*
+
+**Notas de produção e conferência pré-commit:**
+
+- O `Dockerfile` já empacota `sabor_da_terra/` (incluindo `rag_store/`), `dados/` e inicia `uvicorn sabor_da_terra.api:app` como usuário não-root (`appuser`).
 - Como o padrão de sessão é `memory://`, o histórico da conversa não persiste entre reinicializações ou múltiplas instâncias no Cloud Run; para persistência em produção, configure `SESSION_SERVICE_URI`.
-- No deploy (via Artifact Registry com a imagem `sabor-da-terra-assistente:v1` ou `gcloud run deploy --source .` usando o `Dockerfile`), informe as credenciais e variáveis em runtime (variáveis de ambiente / Secret Manager), nunca dentro da imagem.
+- Informe credenciais e chaves apenas em runtime (`--set-env-vars` / `--set-secrets`), nunca dentro da imagem nem do Git.
 - Antes de fazer `git commit`, rode `git status` e confirme que o arquivo `.env` continua ignorado e não aparece na lista de alterações.
 
 ## Validação técnica
