@@ -37,7 +37,25 @@ Com o ambiente virtual ativado, execute o agente no terminal a partir da raiz do
 adk run sabor_da_terra
 ```
 
-Para usar a interface web local, execute `adk web` na raiz do projeto e selecione `sabor_da_terra`. Consulte o [guia oficial do ADK](https://adk.dev/get-started/python/) para mais detalhes. O arquivo `.env` contém credenciais e é ignorado pelo Git.
+Para usar a interface web local do ADK, execute `adk web` na raiz do projeto e selecione `sabor_da_terra`. Consulte o [guia oficial do ADK](https://adk.dev/get-started/python/) para mais detalhes. O arquivo `.env` contém credenciais e é ignorado pelo Git.
+
+## Executar API + Interface Frontend (React)
+
+1. Suba o backend FastAPI + Google ADK na porta `8080`:
+
+```bash
+.venv/bin/uvicorn sabor_da_terra.api:app --host 127.0.0.1 --port 8080
+```
+
+2. Em outro terminal, suba o frontend em `frontend/` (o `vite.config.ts` já encaminha `/api/*` para `http://127.0.0.1:8080`):
+
+```bash
+cd frontend
+npm install
+npm run dev
+```
+
+3. Acesse `http://localhost:5173` para escolher entre **Área do Cooperado** e **Área do Produtor** (carrega `/api/produtores`, `/api/produtores/{id}` e `/api/chat`).
 
 ## Executar com Docker
 
@@ -140,7 +158,20 @@ Com o container em execução na porta `8080`, rode em outro terminal:
 curl -s http://127.0.0.1:8080/health
 curl -s http://127.0.0.1:8080/list-apps
 
-# Enviar mensagem ao agente (criação de sessão automática habilitada)
+# Enviar mensagem ao endpoint simplificado da interface (retorna resposta, fontes RAG e estado)
+curl -s -X POST http://127.0.0.1:8080/api/chat \
+  -H "Content-Type: application/json" \
+  -d '{
+    "message": "Quais pedidos pendentes temos hoje?",
+    "user_id": "operador"
+  }'
+
+# Consultar pedidos pendentes e produtores da cooperativa
+curl -s http://127.0.0.1:8080/api/pedidos-pendentes
+curl -s http://127.0.0.1:8080/api/produtores
+curl -s http://127.0.0.1:8080/api/produtores/P001
+
+# Enviar mensagem pela rota nativa do ADK (criação de sessão automática habilitada)
 curl -s -X POST http://127.0.0.1:8080/run \
   -H "Content-Type: application/json" \
   -d '{
