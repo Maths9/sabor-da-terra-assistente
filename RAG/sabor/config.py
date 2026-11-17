@@ -16,7 +16,7 @@ EMBED_DIM = int(os.environ.get("SABOR_EMBED_DIM", "768"))
 COLECAO = "sabor_da_terra_docs"
 # Relevância mínima (similaridade de cosseno, 0 a 1) para considerar um trecho como fonte.
 # O valor 0.45 é um ponto de partida: calibrar com o evalset do Integrante 6.
-LIMIAR_RELEVANCIA = float(os.environ.get("SABOR_LIMIAR", "0.60"))
+LIMIAR_RELEVANCIA = float(os.environ.get("SABOR_LIMIAR", "0.65"))
 
 
 def parse_data(texto: str) -> date:
