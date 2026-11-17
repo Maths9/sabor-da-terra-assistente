@@ -4,6 +4,8 @@ from __future__ import annotations
 
 import hashlib
 import json
+import math
+import os
 import re
 from datetime import date
 from pathlib import Path
@@ -16,7 +18,9 @@ from google.genai import types
 from sabor_da_terra.config import (
     DADOS_DIR,
     RAG_COLLECTION_NAME,
+    RAG_MIN_RELEVANCE,
     RAG_STORE_DIR,
+    SABOR_EMBEDDING_DIM,
     SABOR_EMBEDDING_MODEL,
 )
 from sabor_da_terra.seguranca import norm_texto, sanitizar_pii_texto
@@ -40,6 +44,14 @@ _TIPO_ALIASES = {
     "adagro": "inspecao",
     "contrato": "contrato",
     "ficha": "ficha_tecnica",
+    "ficha_tecnica": "ficha_tecnica",
+}
+
+_TIPO_PARA_V2 = {
+    "certificacao": "certificacao_organica",
+    "laudo": "laudo_sanitario",
+    "inspecao": "inspecao",
+    "contrato": "contrato",
     "ficha_tecnica": "ficha_tecnica",
 }
 
@@ -103,25 +115,72 @@ _chroma_clients: dict[str, Any] = {}
 def _get_genai_client() -> genai.Client:
     global _genai_client
     if _genai_client is None:
-        _genai_client = genai.Client()
+        usar_vertex = os.environ.get("GOOGLE_GENAI_USE_VERTEXAI", "").strip().lower() in {
+            "1",
+            "true",
+        }
+        api_key = os.environ.get("GOOGLE_API_KEY") or os.environ.get("GEMINI_API_KEY")
+        _genai_client = (
+            genai.Client(api_key=api_key)
+            if (api_key and not usar_vertex)
+            else genai.Client()
+        )
     return _genai_client
 
 
-def _get_chroma_collection(store_dir: Path, create: bool = False):
+def _carregar_info_indice(store_dir: Path) -> dict[str, Any]:
+    """Detecta se o índice usa o formato oficial v2 (index_info.json) ou legado (manifest.json)."""
+    info_v2 = store_dir / "index_info.json"
+    if info_v2.is_file():
+        dados = json.loads(info_v2.read_text(encoding="utf-8"))
+        embedder = dados.get("embedder") or {}
+        return {
+            "esquema": "index_v2",
+            "colecao": dados.get("colecao") or RAG_COLLECTION_NAME,
+            "modelo": embedder.get("nome") or SABOR_EMBEDDING_MODEL,
+            "dim": int(embedder.get("dim") or SABOR_EMBEDDING_DIM),
+            "normalizar": True,
+        }
+
+    manifest_v1 = store_dir / "manifest.json"
+    if manifest_v1.is_file():
+        dados = json.loads(manifest_v1.read_text(encoding="utf-8"))
+        return {
+            "esquema": "manifest_v1",
+            "colecao": RAG_COLLECTION_NAME,
+            "modelo": dados.get("modelo_embedding") or SABOR_EMBEDDING_MODEL,
+            "dim": None,
+            "normalizar": False,
+        }
+
+    return {
+        "esquema": "manifest_v1",
+        "colecao": RAG_COLLECTION_NAME,
+        "modelo": SABOR_EMBEDDING_MODEL,
+        "dim": None,
+        "normalizar": False,
+    }
+
+
+def _get_chroma_collection(
+    store_dir: Path,
+    create: bool = False,
+    colecao_nome: str = RAG_COLLECTION_NAME,
+):
     key = str(store_dir.resolve())
     if key not in _chroma_clients or create:
         _chroma_clients[key] = chromadb.PersistentClient(path=str(store_dir))
     client = _chroma_clients[key]
     if create:
         try:
-            client.delete_collection(name=RAG_COLLECTION_NAME)
+            client.delete_collection(name=colecao_nome)
         except Exception:
             pass
         return client.create_collection(
-            name=RAG_COLLECTION_NAME,
+            name=colecao_nome,
             metadata={"hnsw:space": "cosine"},
         )
-    return client.get_collection(name=RAG_COLLECTION_NAME)
+    return client.get_collection(name=colecao_nome)
 
 
 def _inferir_tipo_documento(rel_path: Path) -> str:
@@ -320,20 +379,35 @@ def preparar_chunks_corpus(dados_dir: Path = DADOS_DIR) -> tuple[list[dict[str, 
     return chunks, hashes
 
 
+def _normalizar_l2(vetor: list[float]) -> list[float]:
+    norma = math.sqrt(sum(v * v for v in vetor)) or 1.0
+    return [v / norma for v in vetor]
+
+
 def _gerar_embeddings(
-    textos: list[str], *, task_type: str
+    textos: list[str],
+    *,
+    task_type: str,
+    modelo: str = SABOR_EMBEDDING_MODEL,
+    dim: Optional[int] = None,
+    normalizar: bool = False,
 ) -> list[list[float]]:
     client = _get_genai_client()
     vetores: list[list[float]] = []
+    cfg_kwargs: dict[str, Any] = {"task_type": task_type}
+    if dim is not None:
+        cfg_kwargs["output_dimensionality"] = int(dim)
     # Lotes pequenos para respeitar limites de payload da API
     for i in range(0, len(textos), 20):
         lote = textos[i : i + 20]
         res = client.models.embed_content(
-            model=SABOR_EMBEDDING_MODEL,
+            model=modelo,
             contents=lote,
-            config=types.EmbedContentConfig(task_type=task_type),
+            config=types.EmbedContentConfig(**cfg_kwargs),
         )
-        vetores.extend(list(emb.values) for emb in res.embeddings)
+        for emb in res.embeddings:
+            valores = list(emb.values)
+            vetores.append(_normalizar_l2(valores) if normalizar else valores)
     return vetores
 
 
@@ -373,19 +447,69 @@ def _montar_filtro_chroma(
     tipo_documento: Optional[str],
     produtor_id: Optional[str],
     validade_min_int: Optional[int],
+    *,
+    esquema: str = "manifest_v1",
+    restringir_produtor_estrito: bool = False,
 ) -> Optional[dict[str, Any]]:
     clausulas: list[dict[str, Any]] = []
-    if tipo_documento:
-        clausulas.append({"tipo_documento": tipo_documento})
-    if produtor_id:
-        clausulas.append({"produtor_id": produtor_id})
-    if validade_min_int is not None:
-        clausulas.append({"validade_ate": {"$gte": validade_min_int}})
+    if esquema == "index_v2":
+        if tipo_documento:
+            clausulas.append({"tipo": _TIPO_PARA_V2.get(tipo_documento, tipo_documento)})
+        if produtor_id and restringir_produtor_estrito:
+            clausulas.append({"produtor_id": produtor_id})
+    else:
+        if tipo_documento:
+            clausulas.append({"tipo_documento": tipo_documento})
+        if produtor_id:
+            clausulas.append({"produtor_id": produtor_id})
+        if validade_min_int is not None:
+            clausulas.append({"validade_ate": {"$gte": validade_min_int}})
     if not clausulas:
         return None
     if len(clausulas) == 1:
         return clausulas[0]
     return {"$and": clausulas}
+
+
+def _meta_para_fonte(meta: dict[str, Any]) -> dict[str, Any]:
+    referencia = str(meta.get("referencia") or meta.get("arquivo") or "")
+    nome = str(meta.get("nome") or (Path(referencia).name if referencia else "documento"))
+    documento_id = str(
+        meta.get("documento_id") or (Path(referencia).stem if referencia else nome)
+    )
+    localizacao = meta.get("localizacao") or (
+        f"Seção: {meta['secao']}" if meta.get("secao") else None
+    )
+    return {
+        "documento_id": documento_id,
+        "nome": nome,
+        "localizacao": localizacao,
+        "referencia": referencia,
+    }
+
+
+def _formatar_trecho(doc: str, meta: dict[str, Any], fonte: dict[str, Any]) -> str:
+    limpo = sanitizar_pii_texto(
+        doc,
+        mascarar_contato=False,
+        mascarar_endereco=False,
+    )
+    if limpo.lstrip().startswith("[Documento:"):
+        return limpo
+    val_meta = int(meta.get("validade_ate") or 0)
+    val_iso = meta.get("validade_iso") or (
+        f"{val_meta // 10000:04d}-{val_meta // 100 % 100:02d}-{val_meta % 100:02d}"
+        if 0 < val_meta < 99991231
+        else "nao_aplicavel"
+    )
+    tipo_lbl = str(meta.get("tipo_documento") or meta.get("tipo") or "")
+    pid_lbl = str(meta.get("produtor_id") or "Cooperativa")
+    loc_lbl = str(fonte.get("localizacao") or "Geral")
+    cabecalho = (
+        f"[Documento: {fonte['nome']} | Referência: {fonte['referencia']} | "
+        f"Tipo: {tipo_lbl} | Produtor: {pid_lbl} | Validade: {val_iso} | {loc_lbl}]"
+    )
+    return f"{cabecalho}\n{limpo}"
 
 
 def consultar_documentos(
@@ -438,8 +562,11 @@ def consultar_documentos(
                 "mensagem": "apenas_vigentes_em inválido. Utilize o formato AAAA-MM-DD.",
             }
 
+    info_indice = _carregar_info_indice(RAG_STORE_DIR)
     try:
-        colecao = _get_chroma_collection(RAG_STORE_DIR, create=False)
+        colecao = _get_chroma_collection(
+            RAG_STORE_DIR, create=False, colecao_nome=info_indice["colecao"]
+        )
         total = colecao.count()
     except Exception as exc:
         return {
@@ -456,7 +583,13 @@ def consultar_documentos(
         }
 
     try:
-        q_emb = _gerar_embeddings([q], task_type="RETRIEVAL_QUERY")[0]
+        q_emb = _gerar_embeddings(
+            [q],
+            task_type="RETRIEVAL_QUERY",
+            modelo=info_indice["modelo"],
+            dim=info_indice["dim"],
+            normalizar=info_indice["normalizar"],
+        )[0]
     except Exception as exc:
         return {
             "status": "erro",
@@ -464,8 +597,25 @@ def consultar_documentos(
             "mensagem": f"Falha ao gerar embedding da consulta: {exc}",
         }
 
-    where = _montar_filtro_chroma(tipo_norm, pid_norm, val_int)
-    n_res = min(max(top_k * 3, 12), total)
+    state = getattr(tool_context, "state", None) if tool_context is not None else None
+    perfil_produtor = (
+        str(state.get("perfil_usuario") or "").strip().lower() == "produtor"
+        if state
+        else False
+    )
+    esquema = info_indice["esquema"]
+    where = _montar_filtro_chroma(
+        tipo_norm,
+        pid_norm,
+        val_int,
+        esquema=esquema,
+        restringir_produtor_estrito=perfil_produtor,
+    )
+    n_res = (
+        total
+        if (esquema == "index_v2" and (pid_norm or val_int is not None))
+        else min(max(top_k * 3, 12), total)
+    )
     res = colecao.query(
         query_embeddings=[q_emb],
         n_results=n_res,
@@ -477,10 +627,29 @@ def consultar_documentos(
     metas = (res.get("metadatas") or [[]])[0]
     dists = (res.get("distances") or [[]])[0]
 
+    dist_max = (
+        round(1.0 - RAG_MIN_RELEVANCE, 6)
+        if esquema == "index_v2"
+        else DISTANCIA_COSENO_MAX
+    )
+
     selecionados: list[tuple[str, dict[str, Any], float]] = []
     for doc, meta, dist in zip(docs, metas, dists):
-        if dist <= DISTANCIA_COSENO_MAX:
-            selecionados.append((doc, meta, dist))
+        if dist > dist_max:
+            continue
+        if esquema == "index_v2":
+            val_meta = int(meta.get("validade_ate") or 0)
+            if val_int is not None and 0 < val_meta < val_int:
+                continue
+            if pid_norm:
+                meta_pid = str(meta.get("produtor_id") or "").strip().upper()
+                meta_prods = str(meta.get("produtores") or "").upper()
+                if perfil_produtor:
+                    if meta_pid != pid_norm:
+                        continue
+                elif meta_pid != pid_norm and f"|{pid_norm}|" not in meta_prods:
+                    continue
+        selecionados.append((doc, meta, dist))
 
     # Se a pergunta citar um código específico (ex. 2024-089) inexistente nos trechos, não forçar falso positivo
     codigos_pergunta = re.findall(r"\b(?:lot-)?\d{4}-\d{3,4}\b", q.lower())
@@ -500,22 +669,17 @@ def consultar_documentos(
         }
 
     selecionados = selecionados[: max(1, min(top_k, 8))]
-    trechos_formatados = [doc for doc, _, _ in selecionados]
+    trechos_formatados: list[str] = []
     fontes: list[dict[str, Any]] = []
     vistos: set[tuple[str, str]] = set()
-    for _, meta, _ in selecionados:
-        chave_fonte = (meta["documento_id"], meta.get("localizacao") or "")
+    for doc, meta, _ in selecionados:
+        fonte = _meta_para_fonte(meta)
+        trechos_formatados.append(_formatar_trecho(doc, meta, fonte))
+        chave_fonte = (fonte["documento_id"], fonte.get("localizacao") or "")
         if chave_fonte in vistos:
             continue
         vistos.add(chave_fonte)
-        fontes.append(
-            {
-                "documento_id": meta["documento_id"],
-                "nome": meta["nome"],
-                "localizacao": meta.get("localizacao"),
-                "referencia": meta["referencia"],
-            }
-        )
+        fontes.append(fonte)
 
     if tool_context is not None and hasattr(tool_context, "state"):
         tool_context.state["ultimas_fontes_rag"] = fontes

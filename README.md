@@ -139,10 +139,13 @@ docker run --rm -p 8080:8080 \
 | Variável | Padrão | Descrição |
 | --- | --- | --- |
 | `PORT` | `8080` | Porta HTTP em que o servidor escuta (`0.0.0.0:$PORT`; definida automaticamente no Cloud Run). |
-| `GOOGLE_API_KEY` | — | Chave do Google AI Studio (quando `GOOGLE_GENAI_USE_VERTEXAI=FALSE`). |
+| `GOOGLE_API_KEY` | — | Chave do Google AI Studio (ou `GEMINI_API_KEY`, quando `GOOGLE_GENAI_USE_VERTEXAI=FALSE`). |
 | `GOOGLE_GENAI_USE_VERTEXAI` | — | `TRUE` para usar Vertex AI em vez da API do AI Studio. |
 | `GOOGLE_CLOUD_PROJECT` | — | ID do projeto GCP (necessário no modo Vertex AI). |
 | `GOOGLE_CLOUD_LOCATION` | — | Região/endpoint da Vertex AI (ex.: `global`, `us-central1`). |
+| `SABOR_INDEX_DIR` | `/app/index` | Diretório do índice ChromaDB empacotado (`index/` com 33 trechos, `gemini-embedding-001` em 768 dimensões). |
+| `SABOR_EMBED_DIM` | `768` | Dimensão do embedding usada na busca vetorial (deve coincidir com `index/index_info.json`). |
+| `SABOR_LIMIAR` | `0.65` | Limiar mínimo de similaridade de cosseno para retornar trechos do RAG. |
 | `SESSION_SERVICE_URI` | `memory://` | URI do serviço de sessões do ADK (`firestore://` no Cloud Run para persistir após deploys; `sqlite:///...` localmente; ou PostgreSQL). |
 | `FIRESTORE_SESSIONS_COLLECTION` | `adk_sessions` | Nome da coleção no Firestore quando `SESSION_SERVICE_URI=firestore://...`. |
 | `SABOR_AUTH_SECRET` | — | Chave HMAC para assinar tokens de sessão (recomendado definir no Cloud Run para manter tokens válidos entre revisões). |
@@ -195,7 +198,7 @@ docker rm <NOME_OU_ID_DO_CONTAINER>    # remove manualmente caso tenha subido se
 
 ### 7. Subir no Cloud Run usando o `Dockerfile` (T39c)
 
-> **Importante:** **não use `adk deploy`** para subir este projeto — ele gera um `Dockerfile` próprio que copia apenas a pasta do agente (deixando dados/índices externos fora da imagem, além de ignorar o `requirements.txt` da raiz e a API `/api/*` do frontend). Use o `Dockerfile` da raiz conforme os passos abaixo, e garanta que a pasta do índice (`sabor_da_terra/rag_store/`) não esteja no `.gitignore` nem no `.dockerignore`.
+> **Importante:** **não use `adk deploy`** para subir este projeto — ele gera um `Dockerfile` próprio que copia apenas a pasta do agente (deixando dados/índices externos fora da imagem, além de ignorar o `requirements.txt` da raiz e a API `/api/*` do frontend). Use o `Dockerfile` da raiz conforme os passos abaixo, e garanta que a pasta oficial do índice (`index/`) não esteja no `.gitignore` nem no `.dockerignore`.
 
 1. **Pré-requisitos no Google Cloud (100% na nuvem):**
    - Estar autenticado no Google Cloud CLI (`gcloud auth login`), com faturamento ativo e APIs do Cloud Run, Cloud Build, Secret Manager e Firestore habilitadas no projeto.
@@ -251,7 +254,7 @@ Depois acesse `http://127.0.0.1:8080` diretamente no navegador (ou suba `npm run
 
 **Notas de produção e conferência pré-commit:**
 
-- O `Dockerfile` já empacota `frontend/dist`, `sabor_da_terra/` (incluindo `rag_store/`), `dados/` e inicia `uvicorn sabor_da_terra.api:app` como usuário não-root (`appuser`).
+- O `Dockerfile` já empacota `frontend/dist`, `index/` (índice vetorial ChromaDB com 33 trechos em 768 dimensões via `SABOR_INDEX_DIR=/app/index`), `sabor_da_terra/`, `dados/` e inicia `uvicorn sabor_da_terra.api:app` como usuário não-root (`appuser`).
 - Com `SESSION_SERVICE_URI=firestore://` e `SABOR_AUTH_SECRET` configurada, o histórico das conversas e o `session.state` sobrevivem a reinícios, múltiplas instâncias e novos deploys no Cloud Run.
 - Informe credenciais, chaves de API e segredos apenas em runtime (`--set-env-vars` / `--set-secrets`), nunca dentro da imagem nem do Git.
 - Antes de fazer `git commit`, rode `git status` e confirme que o arquivo `.env` continua ignorado e não aparece na lista de alterações.

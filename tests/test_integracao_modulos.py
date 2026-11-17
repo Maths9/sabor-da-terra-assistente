@@ -269,36 +269,121 @@ def test_rag_chunks_sem_pii_e_validacao_parametros() -> None:
     assert consultar_documentos("teste", apenas_vigentes_em="31/10/2026")["status"] == "entrada_invalida"
 
 
-def test_rag_consulta_com_indice_real_e_embedding_mockado(monkeypatch) -> None:
-    assert (RAG_STORE_DIR / "manifest.json").exists()
+def test_rag_consulta_com_indice_real_e_embedding_mockado(monkeypatch, tmp_path) -> None:
+    import shutil
+    import chromadb
 
-    class _FakeCollection:
-        def count(self) -> int:
-            return 1
+    assert (RAG_STORE_DIR / "index_info.json").exists()
+    idx_copia = tmp_path / "index_copia"
+    shutil.copytree(RAG_STORE_DIR, idx_copia)
+    monkeypatch.setattr("sabor_da_terra.rag.RAG_STORE_DIR", idx_copia)
 
-        def query(self, **kwargs):
-            return {
-                "documents": [["[Documento: inspecao_adagro_2026.txt] NC-001 Laticinio Serra Dourada"]],
-                "metadatas": [[{
-                    "documento_id": "inspecao_adagro_2026",
-                    "nome": "inspecao_adagro_2026.txt",
-                    "localizacao": "Seção: NÃO CONFORMIDADES",
-                    "referencia": "certificacoes/inspecao_adagro_2026.txt",
-                }]],
-                "distances": [[0.20]],
-            }
+    col_real = chromadb.PersistentClient(path=str(idx_copia)).get_collection(
+        "sabor_da_terra_docs"
+    )
+    assert col_real.count() == 33
+    amostra = col_real.get(include=["embeddings", "metadatas"])
 
-    monkeypatch.setattr("sabor_da_terra.rag._get_chroma_collection", lambda *a, **k: _FakeCollection())
-    monkeypatch.setattr("sabor_da_terra.rag._gerar_embeddings", lambda *a, **k: [[0.1] * 10])
+    def _vetor_do_arquivo(subpath: str) -> list[float]:
+        for emb, meta in zip(amostra["embeddings"], amostra["metadatas"]):
+            if meta.get("arquivo") == subpath:
+                return [float(x) for x in emb]
+        raise AssertionError(f"Arquivo não encontrado no índice: {subpath}")
 
-    ctx = _dummy_context()
-    res = consultar_documentos("Qual a NC-001 da ADAGRO?", tool_context=ctx)
+    vetor_ativo = {"atual": _vetor_do_arquivo("certificacoes/inspecao_adagro_2026.txt")}
+    chamadas_embed: list[dict[str, Any]] = []
+
+    def _fake_embed(textos: list[str], **kwargs: Any) -> list[list[float]]:
+        chamadas_embed.append(dict(kwargs))
+        return [vetor_ativo["atual"] for _ in textos]
+
+    monkeypatch.setattr("sabor_da_terra.rag._gerar_embeddings", _fake_embed)
+
+    ctx_op = _dummy_context({"perfil_usuario": "operador"})
+    res = consultar_documentos(
+        "Qual a NC-001 da ADAGRO?",
+        tipo_documento="inspecao",
+        tool_context=ctx_op,
+    )
     assert res["status"] == "ok"
+    assert chamadas_embed[-1]["modelo"] == "gemini-embedding-001"
+    assert chamadas_embed[-1]["dim"] == 768
+    assert chamadas_embed[-1]["normalizar"] is True
     assert res["dados"]["fontes"][0]["documento_id"] == "inspecao_adagro_2026"
-    assert len(ctx.state["ultimas_fontes_rag"]) == 1
+    assert res["dados"]["fontes"][0]["referencia"] == "certificacoes/inspecao_adagro_2026.txt"
+    assert len(ctx_op.state["ultimas_fontes_rag"]) >= 1
+    assert all(
+        f["documento_id"] == "inspecao_adagro_2026"
+        for f in ctx_op.state["ultimas_fontes_rag"]
+    )
+
+    # Operador consegue localizar menção a P017 na inspeção ADAGRO via campo `produtores`
+    res_p017 = consultar_documentos(
+        "Restrições sanitárias de P017",
+        produtor_id="P017",
+        tool_context=ctx_op,
+    )
+    assert res_p017["status"] == "ok"
+    assert res_p017["dados"]["fontes"][0]["documento_id"] == "inspecao_adagro_2026"
+
+    # Certificado vencido de P008 (2026-09-30) é filtrado por apenas_vigentes_em="2026-10-30"
+    vetor_ativo["atual"] = _vetor_do_arquivo(
+        "certificacoes/cert_organica_josefa_souza_P008.txt"
+    )
+    assert (
+        consultar_documentos(
+            "Certificado orgânico de P008",
+            tipo_documento="certificacao",
+            produtor_id="P008",
+            apenas_vigentes_em="2026-10-30",
+            tool_context=ctx_op,
+        )["status"]
+        == "nao_encontrado"
+    )
+
+    # Laudo sanitário sem validade definida (validade_ate=0) continua válido com apenas_vigentes_em
+    vetor_ativo["atual"] = _vetor_do_arquivo(
+        "certificacoes/laudo_sanitario_apiario_jose_P002.txt"
+    )
+    res_laudo = consultar_documentos(
+        "Laudo sanitário P002",
+        tipo_documento="laudo",
+        apenas_vigentes_em="2026-10-30",
+        tool_context=ctx_op,
+    )
+    assert res_laudo["status"] == "ok"
+    assert res_laudo["dados"]["fontes"][0]["documento_id"] == "laudo_sanitario_apiario_jose_P002"
+
+    # Isolamento estrito no Portal do Produtor: P001 só vê seus próprios certificados/laudos (nunca ADAGRO ou P002)
+    vetor_ativo["atual"] = _vetor_do_arquivo("certificacoes/inspecao_adagro_2026.txt")
+    ctx_p001 = _dummy_context({"perfil_usuario": "produtor", "produtor_em_foco": "P001"})
+    res_p001_adagro = consultar_documentos(
+        "Inspeção ADAGRO",
+        produtor_id="P001",
+        tool_context=ctx_p001,
+    )
+    if res_p001_adagro["status"] == "ok":
+        assert all(
+            f["documento_id"] == "cert_organica_maria_silva_P001"
+            for f in res_p001_adagro["dados"]["fontes"]
+        )
+    vetor_ativo["atual"] = _vetor_do_arquivo(
+        "certificacoes/cert_organica_maria_silva_P001.txt"
+    )
+    res_p001 = consultar_documentos(
+        "Meu certificado orgânico",
+        produtor_id="P001",
+        tool_context=ctx_p001,
+    )
+    assert res_p001["status"] == "ok"
+    assert (
+        res_p001["dados"]["fontes"][0]["documento_id"]
+        == "cert_organica_maria_silva_P001"
+    )
 
     # Filtro anti falso-positivo para código de lote inexistente
-    res_falso = consultar_documentos("Qual o status do lote 2024-089?")
+    vetor_ativo["atual"] = _vetor_do_arquivo("certificacoes/inspecao_adagro_2026.txt")
+    res_falso = consultar_documentos("Qual o status do lote 2024-089?", tool_context=ctx_op)
     assert res_falso["status"] == "nao_encontrado"
 
 

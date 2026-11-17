@@ -14,7 +14,8 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
     PIP_NO_CACHE_DIR=1 \
     PYTHONPATH=/app \
     PORT=8080 \
-    ADK_DISABLE_LOCAL_STORAGE=1
+    ADK_DISABLE_LOCAL_STORAGE=1 \
+    SABOR_INDEX_DIR=/app/index
 
 WORKDIR /app
 
@@ -25,9 +26,10 @@ RUN adduser --disabled-password --gecos "" appuser
 COPY requirements.txt ./
 RUN pip install --no-cache-dir -r requirements.txt
 
-# Copia o código do agente, a base operacional e o build estático do frontend
+# Copia o código do agente, a base operacional, o índice oficial do RAG e o build estático do frontend
 COPY --chown=appuser:appuser sabor_da_terra/ ./sabor_da_terra/
 COPY --chown=appuser:appuser dados/ ./dados/
+COPY --chown=appuser:appuser index/ ./index/
 COPY --from=frontend-builder --chown=appuser:appuser /frontend/dist ./frontend/dist
 
 USER appuser

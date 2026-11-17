@@ -37,6 +37,9 @@ __pycache__/
 frontend/dist/
 frontend/.vite/
 
+# Índice legado local (a imagem utiliza o índice oficial em index/)
+sabor_da_terra/rag_store/
+
 # Documentação, testes locais e arquivos auxiliares
 docs/
 validacao/
