@@ -45,6 +45,7 @@ py scripts\calibrar_limiar.py
 | `sabor/ingestao.py` | Lê, ignora duplicatas por hash, mascara, **falha se sobrar dado pessoal**, gera chunks e embeddings, grava índice e `index_info.json` |
 | `sabor/busca.py` | Ferramenta `buscar_documentos` |
 | `sabor/dados.py` | Ferramentas `consultar_lote` e `situacao_produtor` |
+| `sabor/banco.py` | Gera `db/01_esquema.sql` e `db/02_dados.sql` e carrega no PostgreSQL (ver `banco-postgres.md`) |
 | `sabor/produtores.py` | Ferramenta `extrato_produtor(produtor_id, solicitante, periodo, data_referencia)`: extrato do produtor em linguagem simples; nega acesso a quem não é o próprio produtor nem a diretoria |
 
 ## Ferramentas para o agente (ADK)
@@ -70,7 +71,7 @@ Funções Python simples, com docstring em português e retorno em `dict` com `s
 
 ## O que foi e o que não foi testado
 
-**Testado (30 testes, sem rede):** mascaramento (e idempotência), chunking dos 20 documentos reais, validade de certificados e contratos, deduplicação, ausência de CPF/PIX/conta no índice, busca com filtros, `nao_encontrado`, recusa de embedder incompatível, limpeza sem colunas pessoais, lote inexistente com sugestão, alertas de lote, situação de produtor, extrato de produtor (acesso próprio, negado a terceiros, sem dado pessoal).
+**Testado (38 testes, sem rede):** mascaramento (e idempotência), chunking dos 20 documentos reais, validade de certificados e contratos, deduplicação, ausência de CPF/PIX/conta no índice, busca com filtros, `nao_encontrado`, recusa de embedder incompatível, limpeza sem colunas pessoais, lote inexistente com sugestão, alertas de lote, situação de produtor, extrato de produtor (acesso próprio, negado a terceiros, sem dado pessoal).
 
 **Validado na máquina do Integrante 3 em 15/11/2026 (Windows, Python 3.14):** os 30 testes; `ChromaStore` real (similaridade, filtro de igualdade, filtros combinados, índice gravado e relido); limpeza e ingestão ponta a ponta com ChromaDB (20 documentos, 33 chunks, 36 dados pessoais mascarados); `GeminiEmbedder` (`gemini-embedding-001`, 768 dimensões; exemplo relevante 0,697 x irrelevante 0,538).
 

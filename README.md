@@ -1,7 +1,7 @@
 # Assistente Inteligente Sabor da Terra
 
 > **Projeto acadêmico com cenário fictício.** A cooperativa, os produtores, os compradores e todos os dados deste repositório são **sintéticos**. Nenhuma pessoa ou empresa real é representada.
-> **Status:** em desenvolvimento (protótipo de 12 dias, 2 sprints). Prontos: exploração dos dados, limpeza, ingestão e busca do RAG (30 testes; ChromaDB e Gemini validados em 15/11; falta calibrar o limiar). Itens marcados com `TODO` ainda não existem.
+> **Status:** em desenvolvimento (protótipo de 12 dias, 2 sprints). Prontos: exploração dos dados, limpeza, ingestão e busca do RAG (38 testes; ChromaDB e Gemini validados em 15/11; falta calibrar o limiar). Itens marcados com `TODO` ainda não existem.
 
 Agente de IA para uma cooperativa de agricultura familiar do Agreste Pernambucano. Um único chat atende a equipe, os compradores e os produtores, e resolve três problemas que hoje são manuais.
 
@@ -50,8 +50,9 @@ flowchart TD
 │   ├── documentos/             # base do RAG (sem duplicatas)
 │   └── index/                  # índice vetorial (gerado pela ingestão)
 ├── sabor/                      # pipeline: limpeza, mascaramento, chunking, embeddings, índice, busca
+├── db/                         # esquema e dados SQL para o PostgreSQL (Cloud SQL)
 ├── evalset/                    # gabarito dos 15 pedidos (json) para o QA
-├── tests/                      # 30 testes (rodam sem rede)
+├── tests/                      # 38 testes (rodam sem rede)
 ├── scripts/
 │   ├── explorar_dados.py       # checagens dos CSV/JSON (pandas)
 │   ├── testar_ambiente.py      # confirma ChromaDB e Gemini na sua máquina
@@ -59,6 +60,7 @@ flowchart TD
 ├── docs/
 │   ├── exploracao-dados.md     # o que está errado, estranho ou escondido nos dados
 │   ├── pipeline-rag.md         # pipeline do RAG, ferramentas do agente e limites
+│   ├── banco-postgres.md       # banco relacional: tabelas e como carregar no Cloud SQL
 │   ├── gabarito-pedidos.md     # o que o agente deve e não deve fazer em cada pedido
 │   ├── resumo-apresentacao-rag.md  # uma página para a apresentação
 │   ├── decisoes.md             # decisões de arquitetura (ChromaDB) e alternativas

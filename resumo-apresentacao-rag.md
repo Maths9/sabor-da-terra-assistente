@@ -14,7 +14,7 @@ Hoje a equipe gasta horas procurando informação espalhada em 20 documentos e 6
 
 ## Números
 - 20 documentos únicos, 33 trechos, 36 dados pessoais mascarados na ingestão.
-- 30 testes automáticos passando (mascaramento, chunking, busca, lotes, produtores).
+- 38 testes automáticos passando (mascaramento, chunking, busca, lotes, produtores).
 - Teste de busca com perguntas reais: o documento certo apareceu nas 10 de 10; perguntas fora do assunto ficam abaixo do limiar de relevância (0,65).
 
 ## Por que ChromaDB (alternativas consideradas)
