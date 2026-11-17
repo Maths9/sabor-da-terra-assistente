@@ -32,6 +32,11 @@ __pycache__/
 .mypy_cache/
 .ruff_cache/
 
+# Frontend (dependências e build gerados no stage Node do Dockerfile)
+**/node_modules/
+frontend/dist/
+frontend/.vite/
+
 # Documentação, testes locais e arquivos auxiliares
 docs/
 validacao/

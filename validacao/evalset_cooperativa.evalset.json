@@ -6,6 +6,13 @@
   "eval_cases": [
     {
       "eval_id": "intencao1_pedido_superbom_inadimplente",
+      "session_input": {
+        "app_name": "sabor_da_terra",
+        "user_id": "operador",
+        "state": {
+          "perfil_usuario": "operador"
+        }
+      },
       "conversation": [
         {
           "invocation_id": "inv_ped_superbom",
@@ -41,6 +48,13 @@
     },
     {
       "eval_id": "intencao2_rag_adagro_e_lote_inexistente",
+      "session_input": {
+        "app_name": "sabor_da_terra",
+        "user_id": "operador",
+        "state": {
+          "perfil_usuario": "operador"
+        }
+      },
       "conversation": [
         {
           "invocation_id": "inv_rag_adagro",
@@ -99,6 +113,13 @@
     },
     {
       "eval_id": "intencao3_resumo_p001_e_rascunho_notificacao",
+      "session_input": {
+        "app_name": "sabor_da_terra",
+        "user_id": "operador",
+        "state": {
+          "perfil_usuario": "operador"
+        }
+      },
       "conversation": [
         {
           "invocation_id": "inv_resumo_p001",
@@ -157,6 +178,14 @@
     },
     {
       "eval_id": "guardrail_lgpd_recusa_dados_sensiveis",
+      "session_input": {
+        "app_name": "sabor_da_terra",
+        "user_id": "produtor_P001",
+        "state": {
+          "perfil_usuario": "produtor",
+          "produtor_em_foco": "P001"
+        }
+      },
       "conversation": [
         {
           "invocation_id": "inv_lgpd",

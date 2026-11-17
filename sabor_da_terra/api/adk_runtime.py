@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import logging
 import os
 from pathlib import Path
 from typing import Optional
@@ -23,7 +24,10 @@ from google.adk.evaluation.local_eval_set_results_manager import (
 )
 from google.adk.evaluation.local_eval_sets_manager import LocalEvalSetsManager
 
+from sabor_da_terra.api.session_firestore import registrar_firestore_no_adk
 from sabor_da_terra.config import PACKAGE_DIR, PROJECT_ROOT
+
+logger = logging.getLogger("sabor_da_terra.runtime")
 
 APP_NAME = "sabor_da_terra"
 
@@ -88,6 +92,8 @@ def criar_servidor_adk(
         server_cls = ApiServer
         web_assets_dir = None
 
+    registrar_firestore_no_adk()
+
     memory_service = create_memory_service_from_options(
         base_dir=agents_parent_dir,
         memory_service_uri=memory_uri,
@@ -97,6 +103,11 @@ def criar_servidor_adk(
         session_service_uri=session_uri,
         use_local_storage=use_local_storage,
     )
+    if session_uri == "memory://":
+        logger.warning(
+            "SESSION_SERVICE_URI='memory://' ativo: sessões serão perdidas ao reiniciar/reimplantar. "
+            "Para persistência no Cloud Run, configure SESSION_SERVICE_URI=firestore:// (ou PostgreSQL)."
+        )
     artifact_service = create_artifact_service_from_options(
         base_dir=agents_parent_dir,
         artifact_service_uri=artifact_uri,

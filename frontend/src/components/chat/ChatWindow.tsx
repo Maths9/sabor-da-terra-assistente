@@ -1,6 +1,11 @@
 import { useEffect, useRef, useState } from "react";
 import type { ChatMessage, UserType } from "../../types";
-import { clearConversation, getConversationHistory, sendMessage } from "../../services/agentService";
+import {
+  clearConversation,
+  getConversationHistory,
+  restoreConversation,
+  sendMessage,
+} from "../../services/agentService";
 import { sugestoes } from "../../data/mockData";
 import MessageBubble from "./MessageBubble";
 
@@ -15,12 +20,27 @@ export default function ChatWindow({ userType, produtorId }: ChatWindowProps) {
   );
   const [text, setText] = useState("");
   const [loading, setLoading] = useState(false);
+  const [restaurando, setRestaurando] = useState(true);
   const endRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
+    let ativo = true;
     setMessages(getConversationHistory(userType, produtorId));
     setText("");
     setLoading(false);
+    setRestaurando(true);
+
+    restoreConversation(userType, produtorId)
+      .then((hist) => {
+        if (ativo) setMessages(hist);
+      })
+      .finally(() => {
+        if (ativo) setRestaurando(false);
+      });
+
+    return () => {
+      ativo = false;
+    };
   }, [userType, produtorId]);
 
   useEffect(() => {
@@ -63,13 +83,19 @@ export default function ChatWindow({ userType, produtorId }: ChatWindowProps) {
       </header>
       <div className="chat-body">
         {messages.map((m) => <MessageBubble key={m.id} message={m} />)}
+        {restaurando && (
+          <div className="msg msg-bot">
+            <span className="avatar">🌱</span>
+            <div className="bubble typing">Sincronizando histórico salvo…</div>
+          </div>
+        )}
         {loading && (
           <div className="msg msg-bot">
             <span className="avatar">🌱</span>
             <div className="bubble typing">Consultando assistente…</div>
           </div>
         )}
-        {messages.length <= 1 && (
+        {!restaurando && messages.length <= 1 && (
           <div className="chips">
             {sugestoes[userType].map((s) => (
               <button key={s} className="chip" onClick={() => enviar(s)}>{s}</button>

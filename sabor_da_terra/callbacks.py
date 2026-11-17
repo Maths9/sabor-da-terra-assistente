@@ -40,13 +40,17 @@ _DIAS_SEMANA_PT = (
     "domingo",
 )
 
-_TOOLS_EXCLUSIVAS_COOPERADO = {
+_PERFIS_OPERADOR = {"operador", "cooperado"}
+_PERFIS_VALIDOS = _PERFIS_OPERADOR | {"produtor"}
+
+_TOOLS_EXCLUSIVAS_OPERADOR = {
     "consultar_pedidos_pendentes",
     "redigir_notificacao",
     "consultar_produtores_ou_organicos",
     "realizar_triagem_completa_pedido",
     "verificar_compliance_e_credito",
 }
+_TOOLS_EXCLUSIVAS_COOPERADO = _TOOLS_EXCLUSIVAS_OPERADOR
 
 _TOOLS_ESCOPO_PRODUTOR = {
     "obter_resumo_produtor",
@@ -54,7 +58,8 @@ _TOOLS_ESCOPO_PRODUTOR = {
 }
 
 _TIPOS_DOC_PUBLICOS_PRODUTOR = {"ficha", "ficha_tecnica"}
-_TIPOS_DOC_RESTRITOS_COOPERADO = {"contrato", "inspecao", "adagro"}
+_TIPOS_DOC_RESTRITOS_OPERADOR = {"contrato", "inspecao", "adagro"}
+_TIPOS_DOC_RESTRITOS_COOPERADO = _TIPOS_DOC_RESTRITOS_OPERADOR
 
 
 def _sanitizar_estrutura(valor: Any) -> Any:
@@ -198,8 +203,8 @@ def injetar_contexto_temporal(
                 f"Perguntas em primeira pessoa ('meus pagamentos', 'minha certificação', 'minhas vendas', 'meus produtos') "
                 f"referem-se a {produtor_id_str}, mantendo integralmente o bloqueio LGPD e o isolamento entre produtores."
             )
-        elif perfil == "cooperado":
-            linhas_estado.append("perfil=cooperado (gestão cooperativa)")
+        elif perfil in _PERFIS_OPERADOR:
+            linhas_estado.append("perfil=operador (gestão cooperativa)")
 
         if produtor_id_str:
             linhas_estado.append(f"produtor_em_foco={produtor_id_str}")
@@ -237,24 +242,30 @@ def validar_acesso_tool(
     args: dict[str, Any],
     tool_context: ToolContext,
 ) -> dict[str, Any] | None:
-    """Guardrail determinístico pré-tool (RBAC e isolamento entre produtores)."""
+    """Guardrail determinístico pré-tool (RBAC fail-closed e isolamento entre produtores)."""
     state = getattr(tool_context, "state", None)
     if not state:
-        return None
+        return _negar_acesso(
+            "Sessão sem contexto de autenticação/perfil válido para executar ferramentas."
+        )
 
     perfil = str(state.get("perfil_usuario") or "").strip().lower()
-    if perfil != "produtor":
+    if perfil in _PERFIS_OPERADOR:
         return None
+    if perfil != "produtor":
+        return _negar_acesso(
+            "Perfil de usuário ausente ou não autorizado para executar esta ferramenta."
+        )
 
     produtor_logado = _extrair_produtor_id_estado(state)
     if not produtor_logado:
         return _negar_acesso(
-            "Sessão no Portal do Produtor sem identificação válida do cooperado em foco."
+            "Sessão no Portal do Produtor sem identificação válida do produtor em foco."
         )
 
-    if tool.name in _TOOLS_EXCLUSIVAS_COOPERADO:
+    if tool.name in _TOOLS_EXCLUSIVAS_OPERADOR:
         return _negar_acesso(
-            f"A ferramenta '{tool.name}' é restrita à equipe administrativa da cooperativa."
+            f"A ferramenta '{tool.name}' é restrita ao operador da cooperativa."
         )
 
     if tool.name in _TOOLS_ESCOPO_PRODUTOR:

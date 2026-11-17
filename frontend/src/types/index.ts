@@ -1,4 +1,16 @@
-export type UserType = "cooperado" | "produtor";
+export type UserType = "operador" | "produtor";
+
+export interface AuthConfig {
+  requer_codigo: boolean;
+  perfis_disponiveis: UserType[];
+}
+
+export interface AuthSession {
+  accessToken: string;
+  userId: string;
+  perfil: UserType;
+  produtorId?: string | null;
+}
 
 export interface FonteDocumento {
   documento_id: string;

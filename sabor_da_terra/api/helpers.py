@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from datetime import date
+from datetime import date, datetime, timezone
 from decimal import Decimal
 from typing import Any
 
@@ -88,6 +88,96 @@ def extrair_texto_final(events: list[Any]) -> str:
     return sanitizar_pii_texto(
         texto_bruto, mascarar_contato=False, mascarar_endereco=False
     )
+
+
+def _formatar_ts_evento(event: Any) -> str:
+    ts = getattr(event, "timestamp", None)
+    if isinstance(ts, (int, float)) and ts > 0:
+        return datetime.fromtimestamp(ts, tz=timezone.utc).isoformat()
+    return datetime.now(timezone.utc).isoformat()
+
+
+def extrair_mensagens_dos_eventos(events: list[Any]) -> list[dict[str, Any]]:
+    """Reconstrói o histórico conversacional (user/assistant) a partir dos eventos ADK."""
+    mensagens: list[dict[str, Any]] = []
+    turn_fontes: list[dict[str, Any]] = []
+    turn_fontes_keys: set[tuple[str, str]] = set()
+    assist_text: Optional[str] = None
+    assist_id: Optional[str] = None
+    assist_ts: Optional[str] = None
+
+    def _flush_assistant() -> None:
+        nonlocal assist_text, assist_id, assist_ts, turn_fontes, turn_fontes_keys
+        if assist_text:
+            mensagens.append(
+                {
+                    "id": assist_id or f"msg-{len(mensagens) + 1}",
+                    "role": "assistant",
+                    "content": sanitizar_pii_texto(
+                        assist_text,
+                        mascarar_contato=False,
+                        mascarar_endereco=False,
+                    ),
+                    "timestamp": assist_ts or datetime.now(timezone.utc).isoformat(),
+                    "fontes": list(turn_fontes),
+                }
+            )
+        assist_text = None
+        assist_id = None
+        assist_ts = None
+        turn_fontes = []
+        turn_fontes_keys = set()
+
+    for idx, event in enumerate(events or []):
+        content = getattr(event, "content", None)
+        parts = getattr(content, "parts", None) or []
+        if not parts:
+            continue
+
+        author = str(getattr(event, "author", "") or "")
+        textos = [
+            p.text
+            for p in parts
+            if getattr(p, "text", None) and not getattr(p, "thought", False)
+        ]
+        bloco = "\n".join(textos).strip()
+        has_fn_resp = any(getattr(p, "function_response", None) is not None for p in parts)
+        has_fn_call = any(getattr(p, "function_call", None) is not None for p in parts)
+
+        if author == "user" and bloco and not has_fn_resp:
+            _flush_assistant()
+            mensagens.append(
+                {
+                    "id": str(getattr(event, "id", None) or f"user-{idx}"),
+                    "role": "user",
+                    "content": sanitizar_pii_texto(
+                        bloco,
+                        mascarar_contato=False,
+                        mascarar_endereco=False,
+                        mascarar_agencia_isolada=False,
+                    ),
+                    "timestamp": _formatar_ts_evento(event),
+                    "fontes": [],
+                }
+            )
+            continue
+
+        for fonte in extrair_fontes_dos_eventos([event]):
+            chave = (
+                str(fonte.get("documento_id") or ""),
+                str(fonte.get("localizacao") or ""),
+            )
+            if chave not in turn_fontes_keys:
+                turn_fontes_keys.add(chave)
+                turn_fontes.append(fonte)
+
+        if bloco and not has_fn_call and not has_fn_resp:
+            assist_text = bloco
+            assist_id = str(getattr(event, "id", None) or f"assist-{idx}")
+            assist_ts = _formatar_ts_evento(event)
+
+    _flush_assistant()
+    return mensagens
 
 
 def listar_produtores_publicos() -> list[dict[str, Any]]:

@@ -1,4 +1,12 @@
 # syntax=docker/dockerfile:1
+
+FROM node:20-alpine AS frontend-builder
+WORKDIR /frontend
+COPY frontend/package.json frontend/package-lock.json ./
+RUN npm ci --no-audit --no-fund
+COPY frontend/ ./
+RUN npm run build
+
 FROM python:3.11-slim
 
 ENV PYTHONDONTWRITEBYTECODE=1 \
@@ -17,9 +25,10 @@ RUN adduser --disabled-password --gecos "" appuser
 COPY requirements.txt ./
 RUN pip install --no-cache-dir -r requirements.txt
 
-# Copia apenas o código do agente e a base de dados operacional
+# Copia o código do agente, a base operacional e o build estático do frontend
 COPY --chown=appuser:appuser sabor_da_terra/ ./sabor_da_terra/
 COPY --chown=appuser:appuser dados/ ./dados/
+COPY --from=frontend-builder --chown=appuser:appuser /frontend/dist ./frontend/dist
 
 USER appuser
 

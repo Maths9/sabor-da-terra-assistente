@@ -469,13 +469,30 @@ def test_guardrail_entrada_before_model() -> None:
 
 
 def test_rbac_before_e_after_tool_portal_produtor() -> None:
-    ctx_coop = _dummy_context({"perfil_usuario": "cooperado"})
+    # Fail-closed se não houver estado ou perfil autorizado
     assert (
         validar_acesso_tool(
-            SimpleNamespace(name="consultar_pedidos_pendentes"), {}, ctx_coop
-        )
-        is None
+            SimpleNamespace(name="consultar_pedidos_pendentes"), {}, _dummy_context({})
+        )["status"]
+        == "acesso_negado"
     )
+    assert (
+        validar_acesso_tool(
+            SimpleNamespace(name="consultar_pedidos_pendentes"),
+            {},
+            _dummy_context({"perfil_usuario": "visitante"}),
+        )["status"]
+        == "acesso_negado"
+    )
+
+    for perfil_op in ("operador", "cooperado"):
+        ctx_op = _dummy_context({"perfil_usuario": perfil_op})
+        assert (
+            validar_acesso_tool(
+                SimpleNamespace(name="consultar_pedidos_pendentes"), {}, ctx_op
+            )
+            is None
+        )
 
     # Fail-closed se perfil produtor estiver sem produtor_em_foco válido
     ctx_sem_id = _dummy_context({"perfil_usuario": "produtor"})
@@ -605,94 +622,125 @@ def test_rbac_before_e_after_tool_portal_produtor() -> None:
     assert dados_cat["alertas"][0]["codigo"] == "QUANTIDADE_NAO_INFORMADA"
 
 
-def test_api_endpoints_e_chat_sessao() -> None:
-    app = criar_app(session_service_uri="memory://", use_web_ui=False)
-    adk_server = app.state.adk_server
+def test_api_endpoints_e_chat_sessao(monkeypatch, tmp_path) -> None:
+    monkeypatch.setenv("SABOR_AUTH_SECRET", "segredo-teste-integracao-32-bytes")
+    db_path = tmp_path / "sessoes_teste.db"
+    sqlite_uri = f"sqlite:///{db_path}"
 
-    class _FakeRunner:
-        async def run_async(
-            self,
-            *,
-            user_id: str,
-            session_id: str,
-            new_message: types.Content,
-            state_delta: dict[str, Any] | None = None,
-        ):
-            sessao = await adk_server.session_service.get_session(
-                app_name=APP_NAME, user_id=user_id, session_id=session_id
-            )
-            if state_delta:
-                ev_delta = Event(
-                    author="user",
-                    actions=EventActions(state_delta=state_delta),
-                )
-                await adk_server.session_service.append_event(sessao, ev_delta)
-                sessao = await adk_server.session_service.get_session(
+    def _instalar_fake_runner(app_instance):
+        adk_srv = app_instance.state.adk_server
+
+        class _FakeRunner:
+            async def run_async(
+                self,
+                *,
+                user_id: str,
+                session_id: str,
+                new_message: types.Content,
+                state_delta: dict[str, Any] | None = None,
+            ):
+                sessao = await adk_srv.session_service.get_session(
                     app_name=APP_NAME, user_id=user_id, session_id=session_id
                 )
-            ev_fontes = Event(
-                author=APP_NAME,
-                content=types.Content(
-                    role="model",
-                    parts=[
-                        types.Part(
-                            function_response=types.FunctionResponse(
-                                name="consultar_documentos",
-                                response={
-                                    "status": "ok",
-                                    "dados": {
-                                        "texto": "...",
-                                        "fontes": [
-                                            {
-                                                "documento_id": "contrato_pnae_garanhuns",
-                                                "nome": "contrato_pnae_garanhuns.txt",
-                                                "localizacao": "Seção: CONDIÇÕES OBRIGATÓRIAS",
-                                                "referencia": "contratos/contrato_pnae_garanhuns.txt",
-                                            }
-                                        ],
+                ev_user = Event(author="user", content=new_message)
+                await adk_srv.session_service.append_event(sessao, ev_user)
+                if state_delta:
+                    ev_delta = Event(
+                        author="user",
+                        actions=EventActions(state_delta=state_delta),
+                    )
+                    await adk_srv.session_service.append_event(sessao, ev_delta)
+                ev_fontes = Event(
+                    author=APP_NAME,
+                    content=types.Content(
+                        role="model",
+                        parts=[
+                            types.Part(
+                                function_response=types.FunctionResponse(
+                                    name="consultar_documentos",
+                                    response={
+                                        "status": "ok",
+                                        "dados": {
+                                            "texto": "...",
+                                            "fontes": [
+                                                {
+                                                    "documento_id": "contrato_pnae_garanhuns",
+                                                    "nome": "contrato_pnae_garanhuns.txt",
+                                                    "localizacao": "Seção: CONDIÇÕES OBRIGATÓRIAS",
+                                                    "referencia": "contratos/contrato_pnae_garanhuns.txt",
+                                                }
+                                            ],
+                                        },
                                     },
-                                },
+                                )
                             )
-                        )
-                    ],
-                ),
-                actions=EventActions(
-                    state_delta={
-                        "produtor_em_foco": "P001",
-                        "resultado_triagem": {"status_viabilidade": "viavel"},
-                        "ultimo_pedido": {"comprador": "PNAE Garanhuns"},
-                    }
-                ),
-            )
-            await adk_server.session_service.append_event(sessao, ev_fontes)
-            yield ev_fontes
-            ev_final = Event(
-                author=APP_NAME,
-                content=types.Content(
-                    role="model",
-                    parts=[types.Part.from_text(text="Resposta verificada. CPF 831.452.674-90 nunca aparece.")],
-                ),
-            )
-            await adk_server.session_service.append_event(sessao, ev_final)
-            yield ev_final
+                        ],
+                    ),
+                    actions=EventActions(
+                        state_delta={
+                            "produtor_em_foco": "P001",
+                            "resultado_triagem": {"status_viabilidade": "viavel"},
+                            "ultimo_pedido": {"comprador": "PNAE Garanhuns"},
+                        }
+                    ),
+                )
+                await adk_srv.session_service.append_event(sessao, ev_fontes)
+                yield ev_fontes
+                ev_final = Event(
+                    author=APP_NAME,
+                    content=types.Content(
+                        role="model",
+                        parts=[
+                            types.Part.from_text(
+                                text="Resposta verificada. CPF 831.452.674-90 nunca aparece."
+                            )
+                        ],
+                    ),
+                )
+                await adk_srv.session_service.append_event(sessao, ev_final)
+                yield ev_final
 
-    async def _fake_get_runner(app_name: str):
-        assert app_name == APP_NAME
-        return _FakeRunner()
+        async def _fake_get_runner(app_name: str):
+            assert app_name == APP_NAME
+            return _FakeRunner()
 
-    adk_server.get_runner_async = _fake_get_runner
+        adk_srv.get_runner_async = _fake_get_runner
+
+    app = criar_app(session_service_uri=sqlite_uri, use_web_ui=False)
+    _instalar_fake_runner(app)
 
     client = TestClient(app)
     assert client.get("/health").json() == {"status": "ok"}
     assert client.get("/api/health").json() == {"status": "ok", "agent": APP_NAME}
     assert client.get("/list-apps").json() == [APP_NAME]
-    assert client.get("/api/pedidos-pendentes").json()["dados"]["total"] == 15
-    assert client.get("/api/sessoes/operador/nao-existe").status_code == 404
-    assert client.post("/api/chat", json={"message": "   "}).status_code == 422
+    assert client.get("/api/auth/config").json() == {
+        "requer_codigo": False,
+        "perfis_disponiveis": ["operador", "produtor"],
+    }
+
+    # Rotas nativas do ADK ficam bloqueadas quando use_web_ui=False
+    assert client.post("/run", json={}).status_code in {404, 405}
+    assert client.get("/apps/sabor_da_terra/users/operador/sessions").status_code == 404
+
+    # Endpoints sensíveis exigem Bearer Token
+    assert client.get("/api/pedidos-pendentes").status_code == 401
+    assert client.get("/api/produtores/P001").status_code == 401
+    assert client.post("/api/chat", json={"message": "Olá"}).status_code == 401
+    assert client.get("/api/sessoes").status_code == 401
+
+    # Login como Operador (aceitando alias legado 'cooperado' e canônico 'operador')
+    auth_op = client.post("/api/auth/sessao", json={"perfil": "operador"})
+    assert auth_op.status_code == 200
+    token_op = auth_op.json()["access_token"]
+    hdr_op = {"Authorization": f"Bearer {token_op}"}
+
+    assert client.get("/api/pedidos-pendentes", headers=hdr_op).json()["dados"]["total"] == 15
+    assert client.get("/api/sessoes/operador/nao-existe", headers=hdr_op).status_code == 404
+    assert client.post("/api/chat", headers=hdr_op, json={"message": "   "}).status_code == 422
 
     res = client.post(
         "/api/chat",
-        headers={"Origin": "http://localhost:5173"},
+        headers={**hdr_op, "Origin": "http://localhost:5173"},
         json={"message": "Verifique PNAE", "session_id": "sess-int-1", "user_id": "operador"},
     )
     assert res.status_code == 200
@@ -706,11 +754,24 @@ def test_api_endpoints_e_chat_sessao() -> None:
     assert body["produtor_em_foco"] == "P001"
     assert body["resultado_triagem"]["status_viabilidade"] == "viavel"
 
-    res_sess = client.get("/api/sessoes/operador/sess-int-1")
-    assert res_sess.status_code == 200
-    assert res_sess.json()["state"]["produtor_em_foco"] == "P001"
+    # Persistência após "novo deploy" (nova instância FastAPI apontando para o mesmo banco)
+    app_redeploy = criar_app(session_service_uri=sqlite_uri, use_web_ui=False)
+    client_redeploy = TestClient(app_redeploy)
+    res_lista = client_redeploy.get("/api/sessoes", headers=hdr_op)
+    assert res_lista.status_code == 200
+    assert any(s["session_id"] == "sess-int-1" for s in res_lista.json()["sessoes"])
 
-    # Endpoints reais de produtores e isolamento LGPD no painel do produtor
+    res_sess = client_redeploy.get("/api/sessoes/operador/sess-int-1", headers=hdr_op)
+    assert res_sess.status_code == 200
+    sess_body = res_sess.json()
+    assert sess_body["state"]["produtor_em_foco"] == "P001"
+    assert len(sess_body["mensagens"]) == 2
+    assert sess_body["mensagens"][0]["role"] == "user"
+    assert sess_body["mensagens"][1]["role"] == "assistant"
+    assert "831.452.674-90" not in sess_body["mensagens"][1]["content"]
+    assert len(sess_body["mensagens"][1]["fontes"]) == 1
+
+    # Endpoints públicos de listagem de produtores (sem PII/financeiro)
     res_prods = client.get("/api/produtores")
     assert res_prods.status_code == 200
     lista_prods = res_prods.json()
@@ -718,7 +779,15 @@ def test_api_endpoints_e_chat_sessao() -> None:
     assert any(p["id"] == "P001" for p in lista_prods["produtores"])
     assert "831.452" not in res_prods.text
 
-    res_p001 = client.get("/api/produtores/P001")
+    # Autenticação como Produtor P001 e isolamento estrito entre produtores/operador
+    auth_p001 = client.post(
+        "/api/auth/sessao", json={"perfil": "produtor", "produtor_id": "P001"}
+    )
+    assert auth_p001.status_code == 200
+    token_p001 = auth_p001.json()["access_token"]
+    hdr_p001 = {"Authorization": f"Bearer {token_p001}"}
+
+    res_p001 = client.get("/api/produtores/P001", headers=hdr_p001)
     assert res_p001.status_code == 200
     p001 = res_p001.json()
     assert p001["codigo"] == "P001"
@@ -728,12 +797,39 @@ def test_api_endpoints_e_chat_sessao() -> None:
     assert "831.452" not in res_p001.text
     assert "28901-3" not in res_p001.text
 
-    assert client.get("/api/produtores/P999").status_code == 404
-    assert client.get("/api/produtores/BAD").status_code == 400
+    # Produtor P001 NÃO acessa painel de P002, pedidos pendentes nem sessões de terceiros
+    assert client.get("/api/produtores/P002", headers=hdr_p001).status_code == 403
+    assert client.get("/api/pedidos-pendentes", headers=hdr_p001).status_code == 403
+    assert client.get("/api/sessoes/operador/sess-int-1", headers=hdr_p001).status_code == 403
+    assert client.delete("/api/sessoes/operador/sess-int-1", headers=hdr_p001).status_code == 403
+
+    # Operador pode consultar painel de P001/P999 (404 para inexistente, 400 para inválido)
+    assert client.get("/api/produtores/P001", headers=hdr_op).status_code == 200
+    assert client.get("/api/produtores/P999", headers=hdr_op).status_code == 404
+    assert client.get("/api/produtores/BAD", headers=hdr_op).status_code == 400
+
+    # Tentativa de spoofing no POST /api/chat é barrada com 403
+    assert (
+        client.post(
+            "/api/chat",
+            headers=hdr_p001,
+            json={"message": "Listar pedidos", "user_type": "operador"},
+        ).status_code
+        == 403
+    )
+    assert (
+        client.post(
+            "/api/chat",
+            headers=hdr_p001,
+            json={"message": "Resumo P002", "produtor_id": "P002"},
+        ).status_code
+        == 403
+    )
 
     # Sessão em perfil produtor com limpeza via DELETE /api/sessoes
     res_chat_prod = client.post(
         "/api/chat",
+        headers=hdr_p001,
         json={
             "message": "Como está meu cadastro?",
             "session_id": "sess-prod-1",
@@ -743,12 +839,168 @@ def test_api_endpoints_e_chat_sessao() -> None:
         },
     )
     assert res_chat_prod.status_code == 200
-    res_sess_prod = client.get("/api/sessoes/produtor_P001/sess-prod-1")
+    res_sess_prod = client.get("/api/sessoes/produtor_P001/sess-prod-1", headers=hdr_p001)
     assert res_sess_prod.status_code == 200
     assert res_sess_prod.json()["state"]["perfil_usuario"] == "produtor"
     assert res_sess_prod.json()["state"]["produtor_em_foco"] == "P001"
 
-    res_del = client.delete("/api/sessoes/produtor_P001/sess-prod-1")
+    res_del = client.delete("/api/sessoes/produtor_P001/sess-prod-1", headers=hdr_p001)
     assert res_del.status_code == 200
     assert res_del.json() == {"status": "ok", "session_id": "sess-prod-1"}
-    assert client.get("/api/sessoes/produtor_P001/sess-prod-1").status_code == 404
+    assert client.get("/api/sessoes/produtor_P001/sess-prod-1", headers=hdr_p001).status_code == 404
+
+    # Código de acesso opcional quando configurado em ambiente
+    monkeypatch.setenv("SABOR_CODIGO_OPERADOR", "op-2026")
+    monkeypatch.setenv("SABOR_CODIGO_PRODUTOR", "prod-2026")
+    assert client.get("/api/auth/config").json()["requer_codigo"] is True
+    assert client.post("/api/auth/sessao", json={"perfil": "operador"}).status_code == 401
+    assert (
+        client.post(
+            "/api/auth/sessao",
+            json={"perfil": "operador", "codigo_acesso": "op-2026"},
+        ).status_code
+        == 200
+    )
+    assert (
+        client.post(
+            "/api/auth/sessao",
+            json={"perfil": "produtor", "produtor_id": "P001", "codigo_acesso": "errado"},
+        ).status_code
+        == 401
+    )
+    assert (
+        client.post(
+            "/api/auth/sessao",
+            json={"perfil": "produtor", "produtor_id": "P001", "codigo_acesso": "prod-2026"},
+        ).status_code
+        == 200
+    )
+
+
+def test_firestore_session_service_roundtrip_emulado() -> None:
+    import asyncio
+    import json as _json
+    import httpx
+    from sabor_da_terra.api.session_firestore import FirestoreSessionService
+
+    store: dict[str, dict[str, Any]] = {}
+
+    def _handler(request: httpx.Request) -> httpx.Response:
+        path = request.url.path
+        prefix = "/v1/projects/proj-teste/databases/(default)/documents"
+        assert path.startswith(prefix)
+        rel = path[len(prefix) :]
+
+        if request.method == "POST" and rel == "/adk_sessions":
+            doc_id = request.url.params["documentId"]
+            key = f"adk_sessions/{doc_id}"
+            if key in store:
+                return httpx.Response(409, json={"error": {"status": "ALREADY_EXISTS"}})
+            body = _json.loads(request.content.decode("utf-8"))
+            doc = {"name": f"{prefix[4:]}/{key}", "fields": body["fields"]}
+            store[key] = doc
+            return httpx.Response(200, json=doc)
+
+        if request.method == "GET" and rel.endswith("/events"):
+            sess_key = rel[1 : -len("/events")]
+            docs = [
+                v for k, v in sorted(store.items()) if k.startswith(f"{sess_key}/events/")
+            ]
+            return httpx.Response(200, json={"documents": docs})
+
+        if request.method == "GET" and rel.startswith("/adk_sessions/"):
+            key = rel[1:]
+            if key not in store:
+                return httpx.Response(404, json={"error": {"status": "NOT_FOUND"}})
+            return httpx.Response(200, json=store[key])
+
+        if request.method == "POST" and rel == ":runQuery":
+            body = _json.loads(request.content.decode("utf-8"))
+            ff = body["structuredQuery"]["where"]["fieldFilter"]
+            campo = ff["field"]["fieldPath"]
+            valor = ff["value"]["stringValue"]
+            matches = [
+                {"document": doc}
+                for k, doc in store.items()
+                if "/events/" not in k
+                and doc["fields"].get(campo, {}).get("stringValue") == valor
+            ]
+            return httpx.Response(200, json=matches or [{"readTime": "now"}])
+
+        if request.method == "POST" and rel == ":commit":
+            body = _json.loads(request.content.decode("utf-8"))
+            for w in body.get("writes", []):
+                if "delete" in w:
+                    key = w["delete"].split("/documents/", 1)[1]
+                    store.pop(key, None)
+                elif "update" in w:
+                    upd = w["update"]
+                    key = upd["name"].split("/documents/", 1)[1]
+                    if w.get("currentDocument", {}).get("exists") and key not in store:
+                        return httpx.Response(404, json={"error": {"status": "NOT_FOUND"}})
+                    if key in store:
+                        store[key]["fields"].update(upd["fields"])
+                    else:
+                        store[key] = {"name": upd["name"], "fields": upd["fields"]}
+            return httpx.Response(200, json={"writeResults": []})
+
+        return httpx.Response(500, json={"error": f"Unhandled {request.method} {rel}"})
+
+    async def _run() -> None:
+        transport = httpx.MockTransport(_handler)
+        client_a = httpx.AsyncClient(transport=transport)
+        svc_a = FirestoreSessionService(
+            project_id="proj-teste",
+            emulator_host="127.0.0.1:8085",
+            http_client=client_a,
+        )
+        sess = await svc_a.create_session(
+            app_name=APP_NAME,
+            user_id="produtor_P001",
+            session_id="sess-fs-1",
+            state={"perfil_usuario": "produtor", "produtor_em_foco": "P001"},
+        )
+        ev1 = Event(
+            author="user",
+            content=types.Content(role="user", parts=[types.Part.from_text(text="Olá")]),
+        )
+        ev2 = Event(
+            author=APP_NAME,
+            content=types.Content(role="model", parts=[types.Part.from_text(text="Oi P001!")]),
+            actions=EventActions(state_delta={"ultimo_pedido": {"comprador": "PNAE"}}),
+        )
+        await svc_a.append_event(sess, ev1)
+        await svc_a.append_event(sess, ev2)
+        await client_a.aclose()
+
+        # Nova instância simulando container após redeploy
+        client_b = httpx.AsyncClient(transport=transport)
+        svc_b = FirestoreSessionService(
+            project_id="proj-teste",
+            emulator_host="127.0.0.1:8085",
+            http_client=client_b,
+        )
+        rec = await svc_b.get_session(
+            app_name=APP_NAME, user_id="produtor_P001", session_id="sess-fs-1"
+        )
+        assert rec is not None
+        assert rec.state["perfil_usuario"] == "produtor"
+        assert rec.state["produtor_em_foco"] == "P001"
+        assert rec.state["ultimo_pedido"]["comprador"] == "PNAE"
+        assert [e.author for e in rec.events] == ["user", APP_NAME]
+
+        lista = await svc_b.list_sessions(app_name=APP_NAME, user_id="produtor_P001")
+        assert [s.id for s in lista.sessions] == ["sess-fs-1"]
+
+        await svc_b.delete_session(
+            app_name=APP_NAME, user_id="produtor_P001", session_id="sess-fs-1"
+        )
+        assert (
+            await svc_b.get_session(
+                app_name=APP_NAME, user_id="produtor_P001", session_id="sess-fs-1"
+            )
+            is None
+        )
+        await client_b.aclose()
+
+    asyncio.run(_run())

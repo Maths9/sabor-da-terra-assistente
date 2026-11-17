@@ -1,7 +1,7 @@
 import type { ProdutorListaItem, UserType } from "../types";
 
 export const sugestoes: Record<UserType, string[]> = {
-  cooperado: [
+  operador: [
     "Quais pedidos pendentes temos na caixa de entrada hoje?",
     "Recebemos um pedido do SuperBom Atacado: 100kg de queijo coalho e 50kg de frango caipira. Podemos atender?",
     "O que diz o relatório da ADAGRO 2026 sobre não conformidades?",
@@ -16,8 +16,8 @@ export const sugestoes: Record<UserType, string[]> = {
 };
 
 export const boasVindas: Record<UserType, string> = {
-  cooperado:
-    "Olá! Sou o Assistente Sabor da Terra. Posso fazer triagem de pedidos, consultar certificações/contratos/fichas técnicas no RAG, checar compliance sanitário e redigir rascunhos de notificação.",
+  operador:
+    "Olá! Sou o Assistente Sabor da Terra (perfil Operador). Posso fazer triagem de pedidos, consultar certificações/contratos/fichas técnicas no RAG, checar compliance sanitário e redigir rascunhos de notificação.",
   produtor:
     "Olá! Estou conectado à base real da Cooperativa Sabor da Terra. Posso consultar seus recebimentos, entregas, certificação e orientações técnicas (mantendo seus dados pessoais protegidos pela LGPD).",
 };

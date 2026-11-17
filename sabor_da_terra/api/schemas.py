@@ -7,6 +7,40 @@ from typing import Any, Literal, Optional
 from pydantic import BaseModel, Field
 
 
+class AuthConfigResponse(BaseModel):
+    """Configuração pública de autenticação demonstrativa da interface."""
+
+    requer_codigo: bool = False
+    perfis_disponiveis: list[Literal["operador", "produtor"]] = Field(
+        default_factory=lambda: ["operador", "produtor"]
+    )
+
+
+class AuthSessaoRequest(BaseModel):
+    """Solicitação de emissão de token para o perfil selecionado na interface."""
+
+    perfil: Literal["operador", "cooperado", "produtor"]
+    produtor_id: Optional[str] = Field(
+        default=None,
+        description="Código do produtor (ex.: P001) quando perfil='produtor'.",
+    )
+    codigo_acesso: Optional[str] = Field(
+        default=None,
+        description="Código/PIN opcional quando habilitado no ambiente.",
+    )
+
+
+class AuthSessaoResponse(BaseModel):
+    """Token assinado emitido para autenticação das rotas /api/*."""
+
+    access_token: str
+    token_type: Literal["bearer"] = "bearer"
+    user_id: str
+    perfil: Literal["operador", "produtor"]
+    produtor_id: Optional[str] = None
+    expires_in: int
+
+
 class ChatRequest(BaseModel):
     """Payload enviado pela interface para conversar com o assistente."""
 
@@ -14,17 +48,28 @@ class ChatRequest(BaseModel):
     session_id: Optional[str] = Field(
         default=None, description="ID da sessão para manter histórico multi-turno."
     )
-    user_id: str = Field(
-        default="operador", description="Identificador do usuário da interface."
-    )
-    user_type: Optional[Literal["cooperado", "produtor"]] = Field(
+    user_id: Optional[str] = Field(
         default=None,
-        description="Perfil ativo na interface ('cooperado' ou 'produtor').",
+        description="Opcional (derivado do token autenticado; se informado, deve coincidir).",
+    )
+    user_type: Optional[Literal["operador", "cooperado", "produtor"]] = Field(
+        default=None,
+        description="Opcional (derivado do token autenticado; se informado, deve coincidir).",
     )
     produtor_id: Optional[str] = Field(
         default=None,
-        description="ID do produtor (ex.: P001) quando operando no portal do produtor.",
+        description="Opcional (derivado do token autenticado; se informado, deve coincidir).",
     )
+
+
+class MensagemSessaoSchema(BaseModel):
+    """Mensagem reconstruída a partir dos eventos persistidos da sessão ADK."""
+
+    id: str
+    role: Literal["user", "assistant"]
+    content: str
+    timestamp: str
+    fontes: list[dict[str, Any]] = Field(default_factory=list)
 
 
 class ChatResponse(BaseModel):

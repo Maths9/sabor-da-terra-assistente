@@ -4,9 +4,14 @@ from __future__ import annotations
 
 from typing import Any
 
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, Depends, HTTPException
 
 from sabor_da_terra.api.adk_runtime import APP_NAME
+from sabor_da_terra.api.auth import (
+    IdentidadeSessao,
+    exigir_identidade,
+    exigir_operador,
+)
 from sabor_da_terra.api.helpers import (
     formatar_painel_produtor,
     listar_produtores_publicos,
@@ -28,7 +33,9 @@ def criar_router_operacional() -> APIRouter:
         return {"status": "ok", "agent": APP_NAME}
 
     @router.get("/pedidos-pendentes")
-    async def api_pedidos_pendentes() -> dict[str, Any]:
+    async def api_pedidos_pendentes(
+        _identidade: IdentidadeSessao = Depends(exigir_operador),
+    ) -> dict[str, Any]:
         return _sanitizar_estrutura(consultar_pedidos_pendentes())
 
     @router.get("/produtores")
@@ -37,7 +44,18 @@ def criar_router_operacional() -> APIRouter:
         return {"total": len(produtores), "produtores": produtores}
 
     @router.get("/produtores/{produtor_id}", response_model=PainelProdutorResponse)
-    async def api_painel_produtor(produtor_id: str) -> PainelProdutorResponse:
+    async def api_painel_produtor(
+        produtor_id: str,
+        identidade: IdentidadeSessao = Depends(exigir_identidade),
+    ) -> PainelProdutorResponse:
+        if identidade.perfil == "produtor":
+            pid = produtor_id.strip().upper()
+            if pid != identidade.produtor_id:
+                raise HTTPException(
+                    status_code=403,
+                    detail="Acesso negado: o produtor só pode consultar o próprio painel.",
+                )
+
         res = obter_resumo_produtor(produtor_id=produtor_id)
         if res["status"] == "entrada_invalida":
             raise HTTPException(status_code=400, detail=res["mensagem"])
