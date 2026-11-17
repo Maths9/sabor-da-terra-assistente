@@ -6,7 +6,7 @@ from datetime import date
 from typing import Any, Optional
 
 from sabor_da_terra.config import DADOS_DIR
-from sabor_da_terra.seguranca import norm_texto
+from sabor_da_terra.seguranca import norm_texto, sanitizar_pii_texto
 from sabor_da_terra.tools.comum import (
     DATA_REFERENCIA_PADRAO,
     EntradaInvalida,
@@ -72,7 +72,14 @@ def consultar_produtores_ou_organicos(
             )
         return resposta(
             "ok",
-            dados={"termo_busca": termo_busca_produtor, "produtores_encontrados": encontrados},
+            dados={
+                "termo_busca": (
+                    sanitizar_pii_texto(termo_busca_produtor, mascarar_contato=True)
+                    if termo_busca_produtor
+                    else termo_busca_produtor
+                ),
+                "produtores_encontrados": encontrados,
+            },
         )
     except EntradaInvalida as exc:
         return resposta("entrada_invalida", mensagem=str(exc))

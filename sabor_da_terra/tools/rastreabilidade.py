@@ -125,10 +125,16 @@ def consultar_pedidos_pendentes(
             "id": achado["id"],
             "data_recebimento": achado["data_recebimento"],
             "canal": achado["canal"],
-            "remetente": sanitizar_pii_texto(achado["remetente"], mascarar_contato=False),
+            "remetente": sanitizar_pii_texto(
+                achado["remetente"],
+                mascarar_contato=False,
+                mascarar_agencia_isolada=False,
+            ),
             "comprador": achado["comprador"],
             "mensagem_original": sanitizar_pii_texto(
-                achado["mensagem_original"], mascarar_contato=False
+                achado["mensagem_original"],
+                mascarar_contato=False,
+                mascarar_agencia_isolada=False,
             ),
             "status": achado["status"],
         }

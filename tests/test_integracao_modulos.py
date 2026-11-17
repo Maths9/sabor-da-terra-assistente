@@ -17,13 +17,19 @@ from google.genai import types
 from sabor_da_terra.agent import LISTA_TODAS_TOOLS, root_agent
 from sabor_da_terra.api import APP_NAME, criar_app
 from sabor_da_terra.callbacks import (
+    MENSAGEM_RECUSA_PII,
     injetar_contexto_temporal,
     processar_retorno_tool,
     sanitizar_resposta_modelo,
+    validar_acesso_tool,
 )
 from sabor_da_terra.config import DADOS_DIR, RAG_STORE_DIR, obter_data_referencia
 from sabor_da_terra.rag import consultar_documentos, preparar_chunks_corpus
-from sabor_da_terra.seguranca import norm_texto, sanitizar_pii_texto
+from sabor_da_terra.seguranca import (
+    detectar_dados_sensiveis,
+    norm_texto,
+    sanitizar_pii_texto,
+)
 from sabor_da_terra.tools import (
     ItemNotificacaoInput,
     ItemPedidoInput,
@@ -68,6 +74,47 @@ def test_sanitizacao_lgpd_idempotente_e_completa() -> None:
 
 def test_norm_texto() -> None:
     assert norm_texto("  Café Orgânico / Maçã  ") == "cafe organico / maca"
+
+
+def test_deteccao_e_mascaramento_pii_avancado() -> None:
+    # CPFs sintéticos do dataset real, RG sem capturar texto posterior e nascimento ISO/BR
+    amostra = (
+        "CPF: 034.567.891-23 | Data de nascimento: 1975-03-12 | "
+        "RG 1234567 SSP-PE de Maria | Nubank ag 0001 cc 7843291-0"
+    )
+    assert set(detectar_dados_sensiveis(amostra)) == {
+        "cpf",
+        "documento_pessoal",
+        "conta_bancaria",
+    }
+    limpo = sanitizar_pii_texto(amostra)
+    assert "034.567.891-23" not in limpo
+    assert "1975-03-12" not in limpo
+    assert "1234567" not in limpo
+    assert "de Maria" in limpo
+    assert "7843291-0" not in limpo
+    assert detectar_dados_sensiveis(limpo) == []
+
+    # PIX copia-e-cola, chave inline sem dois-pontos e hex32 apenas com contexto PIX
+    pix_txt = (
+        "Minha chave PIX é 831.452.674-90 | Copia e cola: "
+        "00020126580014br.gov.bcb.pix0136123e4567-e89b-12d3-a456-426614174000"
+    )
+    assert "pix" in detectar_dados_sensiveis(pix_txt)
+    pix_limpo = sanitizar_pii_texto(pix_txt)
+    assert "831.452.674-90" not in pix_limpo
+    assert "000201" not in pix_limpo
+
+    # UUID hex de sessão sem contexto PIX não deve gerar falso positivo
+    sess_txt = "Sessão ativa: a1b2c3d4e5f60718293a4b5c6d7e8f90"
+    assert detectar_dados_sensiveis(sess_txt) == []
+
+    # PED-2026-012: agência isolada preservada na entrada/pedido, mascarada na saída
+    ped12 = consultar_pedidos_pendentes("PED-2026-012")["dados"]
+    assert "0437" in ped12["mensagem_original"]
+    assert "0437" not in sanitizar_pii_texto(
+        "Sua conta é agência 0437.", mascarar_agencia_isolada=True
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -358,10 +405,204 @@ def test_callbacks_temporal_tool_state_e_lgpd() -> None:
 
 def test_agent_e_declarations_adk() -> None:
     assert root_agent.name == APP_NAME
+    assert root_agent.before_tool_callback is validar_acesso_tool
     assert len(LISTA_TODAS_TOOLS) == 9
     for fn in LISTA_TODAS_TOOLS:
         decl = FunctionTool(fn)._get_declaration()
         assert decl is not None and decl.name == fn.__name__
+
+
+def test_guardrail_entrada_before_model() -> None:
+    ctx = _dummy_context({"perfil_usuario": "cooperado"})
+
+    # 1) Envio puro de dados sensíveis é barrado deterministicamente sem chamar LLM
+    req_pii = LlmRequest(
+        contents=[
+            types.Content(
+                role="user",
+                parts=[
+                    types.Part.from_text(
+                        text="Meu CPF é 831.452.674-90 e minha chave PIX é 831.452.674-90"
+                    )
+                ],
+            )
+        ]
+    )
+    resp_bloqueio = injetar_contexto_temporal(ctx, req_pii)
+    assert resp_bloqueio is not None
+    assert resp_bloqueio.content.parts[0].text == MENSAGEM_RECUSA_PII
+    assert "831.452.674-90" not in req_pii.contents[0].parts[0].text
+
+    # 2) Pedido comercial com CPF na assinatura mascara o CPF, mas permite triagem
+    req_pedido_com_cpf = LlmRequest(
+        contents=[
+            types.Content(
+                role="user",
+                parts=[
+                    types.Part.from_text(
+                        text="Pedido PNAE: 200kg banana prata e 100kg goiaba. Att Dr. Fernando CPF: 034.567.891-23"
+                    )
+                ],
+            )
+        ]
+    )
+    assert injetar_contexto_temporal(ctx, req_pedido_com_cpf) is None
+    assert "034.567.891-23" not in req_pedido_com_cpf.contents[0].parts[0].text
+    assert "[CPF OMITIDO]" in req_pedido_com_cpf.contents[0].parts[0].text
+    assert "GUARDRAIL LGPD NA ENTRADA" in str(req_pedido_com_cpf.config.system_instruction)
+
+    # 3) Conferência de agência isolada (PED-2026-012) não é bloqueada
+    req_agencia = LlmRequest(
+        contents=[
+            types.Content(
+                role="user",
+                parts=[
+                    types.Part.from_text(
+                        text="Minha conta é no BB agência 0437. Quanto vendi esse mês?"
+                    )
+                ],
+            )
+        ]
+    )
+    assert injetar_contexto_temporal(ctx, req_agencia) is None
+    assert "0437" in req_agencia.contents[0].parts[0].text
+
+
+def test_rbac_before_e_after_tool_portal_produtor() -> None:
+    ctx_coop = _dummy_context({"perfil_usuario": "cooperado"})
+    assert (
+        validar_acesso_tool(
+            SimpleNamespace(name="consultar_pedidos_pendentes"), {}, ctx_coop
+        )
+        is None
+    )
+
+    # Fail-closed se perfil produtor estiver sem produtor_em_foco válido
+    ctx_sem_id = _dummy_context({"perfil_usuario": "produtor"})
+    neg_sem_id = validar_acesso_tool(
+        SimpleNamespace(name="obter_resumo_produtor"),
+        {"produtor_id": "P001"},
+        ctx_sem_id,
+    )
+    assert neg_sem_id is not None and neg_sem_id["status"] == "acesso_negado"
+
+    ctx_p001 = _dummy_context({"perfil_usuario": "produtor", "produtor_em_foco": "P001"})
+
+    # Ferramentas restritas à equipe administrativa
+    for nome_restrita in (
+        "consultar_pedidos_pendentes",
+        "redigir_notificacao",
+        "consultar_produtores_ou_organicos",
+        "realizar_triagem_completa_pedido",
+        "verificar_compliance_e_credito",
+    ):
+        res_neg = validar_acesso_tool(SimpleNamespace(name=nome_restrita), {}, ctx_p001)
+        assert res_neg is not None and res_neg["status"] == "acesso_negado"
+
+    # Isolamento entre produtores em resumo e lotes
+    assert (
+        validar_acesso_tool(
+            SimpleNamespace(name="obter_resumo_produtor"),
+            {"produtor_id": "P002"},
+            ctx_p001,
+        )["status"]
+        == "acesso_negado"
+    )
+    assert (
+        validar_acesso_tool(
+            SimpleNamespace(name="obter_resumo_produtor"),
+            {"produtor_id": "P001"},
+            ctx_p001,
+        )
+        is None
+    )
+    assert (
+        validar_acesso_tool(
+            SimpleNamespace(name="consultar_lotes"),
+            {"lote_id": "LOT-2026-0089"},
+            ctx_p001,
+        )["status"]
+        == "acesso_negado"
+    )
+    assert (
+        validar_acesso_tool(
+            SimpleNamespace(name="consultar_lotes"),
+            {"produtor_id": "P001", "lote_id": "LOT-2026-0089"},
+            ctx_p001,
+        )
+        is None
+    )
+
+    # Filtro pós-tool impede acesso a lote de P003 mesmo se passar produtor_id=P001 junto com lote_id
+    ret_lote_p003 = processar_retorno_tool(
+        SimpleNamespace(name="consultar_lotes"),
+        {"produtor_id": "P001", "lote_id": "LOT-2026-0089"},
+        ctx_p001,
+        consultar_lotes(lote_id="LOT-2026-0089"),
+    )
+    assert ret_lote_p003["status"] == "acesso_negado"
+
+    ret_lote_inex = processar_retorno_tool(
+        SimpleNamespace(name="consultar_lotes"),
+        {"produtor_id": "P001", "lote_id": "2024-089"},
+        ctx_p001,
+        consultar_lotes(lote_id="2024-089"),
+    )
+    assert "P003" not in ret_lote_inex["mensagem"]
+
+    # Escopo de documentos RAG no Portal do Produtor
+    assert (
+        validar_acesso_tool(
+            SimpleNamespace(name="consultar_documentos"),
+            {"pergunta": "armazenamento goiaba", "tipo_documento": "ficha_tecnica"},
+            ctx_p001,
+        )
+        is None
+    )
+    assert (
+        validar_acesso_tool(
+            SimpleNamespace(name="consultar_documentos"),
+            {"pergunta": "meu certificado", "produtor_id": "P001"},
+            ctx_p001,
+        )
+        is None
+    )
+    for args_neg in (
+        {"pergunta": "certificado P002", "produtor_id": "P002"},
+        {"pergunta": "clausulas pnae", "tipo_documento": "contrato"},
+        {"pergunta": "nao conformidades", "tipo_documento": "inspecao"},
+        {"pergunta": "certificados gerais"},
+    ):
+        assert (
+            validar_acesso_tool(
+                SimpleNamespace(name="consultar_documentos"), args_neg, ctx_p001
+            )["status"]
+            == "acesso_negado"
+        )
+
+    # Anonimização de terceiros em avaliar_item_catalogo para produtor
+    ret_cat = processar_retorno_tool(
+        SimpleNamespace(name="avaliar_item_catalogo"),
+        {"produto": "mel silvestre", "exige_organico": True},
+        ctx_p001,
+        {
+            "status": "ok",
+            "dados": {
+                "produtores_aptos": ["P002 - José", "P001 - Maria"],
+                "produtores_bloqueados": ["P008 - Josefa [CERTIFICAÇÃO VENCIDA]"],
+                "alertas": [
+                    {"codigo": "CERTIFICACAO_VENCIDA", "produtor_relacionado": "P008"},
+                    {"codigo": "QUANTIDADE_NAO_INFORMADA", "produtor_relacionado": None},
+                ],
+            },
+        },
+    )
+    dados_cat = ret_cat["dados"]
+    assert any("P001" in item for item in dados_cat["produtores_aptos"])
+    assert not any("P002" in item for item in dados_cat["produtores_aptos"])
+    assert not any("P008" in item for item in dados_cat["produtores_bloqueados"])
+    assert len(dados_cat["alertas"]) == 1
+    assert dados_cat["alertas"][0]["codigo"] == "QUANTIDADE_NAO_INFORMADA"
 
 
 def test_api_endpoints_e_chat_sessao() -> None:

@@ -4,7 +4,6 @@ from __future__ import annotations
 
 from typing import Any, Optional
 
-from sabor_da_terra.seguranca import norm_texto
 from sabor_da_terra.tools.comum import (
     DATA_REFERENCIA_PADRAO,
     EntradaInvalida,
@@ -13,6 +12,7 @@ from sabor_da_terra.tools.comum import (
     resposta,
     validar_data,
 )
+from sabor_da_terra.tools.regras_cooperativa import cliente_exige_sie
 from sabor_da_terra.tools.schemas import ItemPedidoInput, TipoDemanda, TriagemPedidoOutput
 from sabor_da_terra.tools.triagem_catalogo import avaliar_item_catalogo
 from sabor_da_terra.tools.triagem_consultas import consultar_produtores_ou_organicos
@@ -21,17 +21,6 @@ from sabor_da_terra.tools.triagem_validacao import (
     normalizar_tipo_demanda,
     validar_mes,
 )
-
-_TIPOS_EXIGEM_SIE_TRIAGEM = {
-    "pnae",
-    "supermercado",
-    "atacado",
-    "hotel",
-    "hospital",
-    "sesc",
-    "institucional",
-    "exportadora",
-}
 
 
 def realizar_triagem_completa_pedido(
@@ -57,7 +46,7 @@ def realizar_triagem_completa_pedido(
         validar_data(data_referencia)
         validar_mes(mes_entrega)
         tipo_demanda_norm = normalizar_tipo_demanda(tipo_demanda)
-        exige_sie = norm_texto(tipo_cliente) in _TIPOS_EXIGEM_SIE_TRIAGEM
+        exige_sie = cliente_exige_sie(tipo_cliente)
         itens_triados: list[dict[str, Any]] = []
         alertas_gerais: list[dict[str, Any]] = []
         campos_pendentes: list[str] = []

@@ -10,6 +10,7 @@ from sabor_da_terra.callbacks import (
     injetar_contexto_temporal,
     processar_retorno_tool,
     sanitizar_resposta_modelo,
+    validar_acesso_tool,
 )
 
 from sabor_da_terra.config import SABOR_MODEL
@@ -52,10 +53,13 @@ root_agent = LlmAgent(
 
     tools=LISTA_TODAS_TOOLS,
 
-    # Injeta data atual e contexto da sessão.
+    # Injeta data atual e aplica guardrail de entrada LGPD.
     before_model_callback=injetar_contexto_temporal,
 
-    # Processa e sanitiza os retornos das ferramentas.
+    # Valida RBAC e isolamento de produtor antes de executar ferramentas.
+    before_tool_callback=validar_acesso_tool,
+
+    # Processa, filtra por perfil e sanitiza os retornos das ferramentas.
     after_tool_callback=processar_retorno_tool,
 
     # Sanitiza a resposta final do modelo.

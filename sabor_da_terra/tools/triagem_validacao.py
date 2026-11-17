@@ -119,7 +119,7 @@ def buscar_produtores_aptos(
     aptos, bloqueados, alertas = [], [], []
     dt_ref = validar_data(data_ref)
 
-    for p in ler_csv(DADOS_DIR / "produtores.csv", filtrar_lgpd=True, remover_contato=False):
+    for p in ler_csv(DADOS_DIR / "produtores.csv", filtrar_lgpd=True, remover_contato=True):
         prods_p = norm_texto(p.get("produtos", ""))
         if not any(t in prods_p for t in tokens_cat):
             continue
