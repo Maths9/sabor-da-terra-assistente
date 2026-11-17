@@ -1,0 +1,121 @@
+{
+  "criado_em": "2026-11-17T15:11:00",
+  "backend": "chroma",
+  "colecao": "sabor_da_terra_docs",
+  "embedder": {
+    "nome": "gemini-embedding-001",
+    "dim": 768
+  },
+  "n_documentos": 20,
+  "n_chunks": 33,
+  "duplicados_ignorados": [],
+  "mascaramento": {
+    "CPF": 27,
+    "CEP": 4,
+    "BANCO": 3,
+    "TELEFONE": 1,
+    "PIX": 1
+  },
+  "arquivos": [
+    {
+      "arquivo": "certificacoes/cert_organica_ana_bezerra_P004.txt",
+      "sha256": "9342d810cf35ebf82a0fe04256cb22ea83e5fecf01593a8769ad48891fccce74",
+      "chunks": 1
+    },
+    {
+      "arquivo": "certificacoes/cert_organica_antonio_lima_P007.txt",
+      "sha256": "319755b2b7df217f1465a4094f4d9f9253c8cb781d55ded4c8cffe8dc962e3f2",
+      "chunks": 2
+    },
+    {
+      "arquivo": "certificacoes/cert_organica_debora_melo_P018.txt",
+      "sha256": "7531533e42b1cbc7ee10b9808c90578f8771a7d234ae943a8fbf4b632558e60d",
+      "chunks": 1
+    },
+    {
+      "arquivo": "certificacoes/cert_organica_jose_santos_P002.txt",
+      "sha256": "411c7a988071eb8c39475c3bdebba4a351b98052c8bf8c379abf779cd89767d7",
+      "chunks": 2
+    },
+    {
+      "arquivo": "certificacoes/cert_organica_josefa_souza_P008.txt",
+      "sha256": "d4e2e164b57b75bab252a31d973ac6337d6f60430280db21a7fd7f1d1996c2d2",
+      "chunks": 1
+    },
+    {
+      "arquivo": "certificacoes/cert_organica_luciana_gomes_P012.txt",
+      "sha256": "276fedd543a80d43a2ebe038c67129ea9c0e25528bd7b0710c3c00da360f5a27",
+      "chunks": 1
+    },
+    {
+      "arquivo": "certificacoes/cert_organica_marcos_rocha_P009.txt",
+      "sha256": "bc762fe9257a8ac19d0543d64263461d6cd617a80b379dc890c474e21e51f501",
+      "chunks": 1
+    },
+    {
+      "arquivo": "certificacoes/cert_organica_maria_silva_P001.txt",
+      "sha256": "e34c53524de85c87c74d3f5e71da5f3c86482656a7113f05b831cb05ddaebb73",
+      "chunks": 2
+    },
+    {
+      "arquivo": "certificacoes/cert_organica_mariana_cordeiro_P014.txt",
+      "sha256": "015ee5431c64c838d03de3d2a7115142f451ebc7b7fb8013a42e924ec1badfa1",
+      "chunks": 1
+    },
+    {
+      "arquivo": "certificacoes/inspecao_adagro_2026.txt",
+      "sha256": "b0a80de7897c06ad18da4da46990c3b2b0fed80d8fb6060f3edc1ffe9567f169",
+      "chunks": 3
+    },
+    {
+      "arquivo": "certificacoes/laudo_sanitario_apiario_jose_P002.txt",
+      "sha256": "7aff939cef7d2bde25c1f37dda62ae9983a433229741604655598712ad40227c",
+      "chunks": 1
+    },
+    {
+      "arquivo": "certificacoes/laudo_sanitario_queijaria_cicero_P003.txt",
+      "sha256": "26754fe473a6e1844b8fbbc38e081e072eff30f4eedf095bd0421b0fd73a9f41",
+      "chunks": 2
+    },
+    {
+      "arquivo": "contratos/contrato_mercado_bom_preco.txt",
+      "sha256": "84cab24133423b766b78c44336e8ebe6657274debabe69871adda1fef642cd9e",
+      "chunks": 2
+    },
+    {
+      "arquivo": "contratos/contrato_pnae_garanhuns.txt",
+      "sha256": "2d88c3ba579f1387333637014c0020689f86c7589ab444ca100217a84a2f135b",
+      "chunks": 3
+    },
+    {
+      "arquivo": "contratos/contrato_restaurante_raizes.txt",
+      "sha256": "92fea8cf86091faeb7922e1018e0ee1395f83be59961a5044ea833e1bc526d9e",
+      "chunks": 1
+    },
+    {
+      "arquivo": "fichas_tecnicas/goiaba_paluma.txt",
+      "sha256": "cd7233b4758c890911f823e28c841fd5f04d46dff537a426a45c5d7ce225a628",
+      "chunks": 1
+    },
+    {
+      "arquivo": "fichas_tecnicas/hortalicas.txt",
+      "sha256": "d89b061383ea2dcda191571ffacab4f48f5b97df7887895c0800d6b0145333b3",
+      "chunks": 2
+    },
+    {
+      "arquivo": "fichas_tecnicas/mel_silvestre.txt",
+      "sha256": "296af1156eeeddc5f028a9b346776e7454a15936216863c910b2b3531b58967c",
+      "chunks": 3
+    },
+    {
+      "arquivo": "fichas_tecnicas/queijo_coalho.txt",
+      "sha256": "3269ecc75583e52dceb63b8f7e47fa81eaa607b29d7c5b5fd2cffdfe2b3bb7bc",
+      "chunks": 2
+    },
+    {
+      "arquivo": "fichas_tecnicas/tuberculos_graos.txt",
+      "sha256": "30f4aa9e7047b92f72172aa78e7aa6f01884cb6ffdc35f097785dcc85e4ac5b6",
+      "chunks": 1
+    }
+  ]
+}
