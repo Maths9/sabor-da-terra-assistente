@@ -15,7 +15,8 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
     PYTHONPATH=/app \
     PORT=8080 \
     ADK_DISABLE_LOCAL_STORAGE=1 \
-    SABOR_INDEX_DIR=/app/index
+    SABOR_INDEX_DIR=/app/index \
+    SABOR_DATA_BACKEND=postgres
 
 WORKDIR /app
 
@@ -26,7 +27,10 @@ RUN adduser --disabled-password --gecos "" appuser
 COPY requirements.txt ./
 RUN pip install --no-cache-dir -r requirements.txt
 
-# Copia o código do agente, a base operacional, o índice oficial do RAG e o build estático do frontend
+# Copia migrações Alembic, scripts de carga, código do agente, base documental, índice RAG e build do frontend
+COPY --chown=appuser:appuser alembic.ini ./alembic.ini
+COPY --chown=appuser:appuser migrations/ ./migrations/
+COPY --chown=appuser:appuser scripts/ ./scripts/
 COPY --chown=appuser:appuser sabor_da_terra/ ./sabor_da_terra/
 COPY --chown=appuser:appuser dados/ ./dados/
 COPY --chown=appuser:appuser index/ ./index/

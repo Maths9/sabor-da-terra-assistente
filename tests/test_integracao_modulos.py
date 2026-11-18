@@ -6,6 +6,7 @@ import re
 from types import SimpleNamespace
 from typing import Any
 
+import pytest
 from fastapi.testclient import TestClient
 from google.adk.events.event import Event
 from google.adk.events.event_actions import EventActions
@@ -45,6 +46,24 @@ from sabor_da_terra.tools import (
 
 def _dummy_context(state: dict[str, Any] | None = None) -> SimpleNamespace:
     return SimpleNamespace(state=state if state is not None else {})
+
+
+@pytest.fixture(autouse=True)
+def _isolar_ambiente_banco_nos_testes(monkeypatch) -> None:
+    """Garante que os testes automatizados não dependam nem alterem o PostgreSQL configurado no .env local."""
+    from sabor_da_terra.database.connection import limpar_cache_conexoes
+
+    for var in (
+        "DATABASE_URL",
+        "DB_HOST",
+        "DB_PORT",
+        "DB_NAME",
+        "DB_USER",
+        "DB_PASSWORD",
+    ):
+        monkeypatch.delenv(var, raising=False)
+    monkeypatch.setenv("SABOR_DATA_BACKEND", "postgres")
+    limpar_cache_conexoes()
 
 
 # ---------------------------------------------------------------------------
@@ -1089,3 +1108,145 @@ def test_firestore_session_service_roundtrip_emulado() -> None:
         await client_b.aclose()
 
     asyncio.run(_run())
+
+
+# ---------------------------------------------------------------------------
+# Banco de Dados Operacional (SQLAlchemy 2.0, Criptografia LGPD e Paridade)
+# ---------------------------------------------------------------------------
+
+
+def test_database_url_tcp_e_unix_socket_cloud_run() -> None:
+    from sabor_da_terra.database.connection import construir_database_url
+
+    url_tcp = construir_database_url(
+        database_url="",
+        db_host="127.0.0.1",
+        db_port=5433,
+        db_name="sabor_terra",
+        db_user="sabor_app",
+        db_password="segredo",
+    )
+    assert url_tcp.drivername == "postgresql+psycopg"
+    assert url_tcp.host == "127.0.0.1"
+    assert url_tcp.port == 5433
+    assert url_tcp.database == "sabor_terra"
+
+    url_socket = construir_database_url(
+        database_url="",
+        db_host="/cloudsql/meu-projeto:us-central1:sabor-postgres-demo",
+        db_port=5432,
+        db_name="sabor_terra",
+        db_user="sabor_app",
+        db_password="segredo",
+    )
+    assert url_socket.drivername == "postgresql+psycopg"
+    assert url_socket.host is None
+    assert url_socket.query.get("host") == "/cloudsql/meu-projeto:us-central1:sabor-postgres-demo"
+
+
+def test_importacao_idempotente_criptografia_lgpd_e_paridade_tools(
+    monkeypatch, tmp_path
+) -> None:
+    from sqlalchemy import select
+    from scripts.importar_dados import importar_todos_os_dados
+    from sabor_da_terra.database import (
+        PREFIXO_CIFRADO,
+        ProdutorModel,
+        RepositorioOperacional,
+        cifrar_valor_sensivel,
+        decifrar_valor_sensivel,
+        get_engine,
+        limpar_cache_conexoes,
+        session_scope,
+    )
+    from sabor_da_terra.tools import (
+        avaliar_item_catalogo,
+        consultar_produtores_ou_organicos,
+    )
+
+    monkeypatch.setenv("SABOR_DB_ENCRYPTION_KEY", "chave-teste-criptografia-lgpd-2026")
+    cifrado = cifrar_valor_sensivel("831.452.674-90")
+    assert cifrado is not None and cifrado.startswith(PREFIXO_CIFRADO)
+    assert "831.452.674-90" not in cifrado
+    # Idempotência: cifrar valor já cifrado não duplica
+    assert cifrar_valor_sensivel(cifrado) == cifrado
+    assert decifrar_valor_sensivel(cifrado) == "831.452.674-90"
+
+    db_file = tmp_path / "sabor_operacional_teste.db"
+    db_url = f"sqlite:///{db_file}"
+    monkeypatch.setenv("DATABASE_URL", db_url)
+    monkeypatch.setenv("SABOR_DATA_BACKEND", "postgres")
+    limpar_cache_conexoes()
+
+    eng = get_engine(db_url)
+    res1 = importar_todos_os_dados(dados_dir=DADOS_DIR, engine=eng, criar_tabelas=True)
+    # Segunda execução deve ser 100% idempotente (UPSERT sem duplicar linhas)
+    res2 = importar_todos_os_dados(dados_dir=DADOS_DIR, engine=eng, criar_tabelas=False)
+    assert res1["contagens"] == {
+        "produtores": 18,
+        "sazonalidade": 50,
+        "precos": 53,
+        "pedidos": 15,
+        "lotes": 20,
+        "transacoes_financeiras": 30,
+    }
+    assert res2["contagens"] == res1["contagens"]
+    assert res2["totais_financeiros"] == {
+        "vendas_total": "24634.00",
+        "total_pago": "11254.00",
+        "total_pendente": "13380.00",
+    }
+
+    # Verifica no banco que CPF, PIX, conta e nascimento estão cifrados e não em texto aberto
+    with session_scope(eng) as session:
+        p001 = session.scalar(select(ProdutorModel).where(ProdutorModel.id == "P001"))
+        assert p001 is not None
+        assert p001.cpf_cifrado.startswith(PREFIXO_CIFRADO)
+        assert "831.452.674-90" not in p001.cpf_cifrado
+        assert decifrar_valor_sensivel(p001.cpf_cifrado) == "831.452.674-90"
+        assert p001.chave_pix_cifrada is not None and p001.chave_pix_cifrada.startswith(PREFIXO_CIFRADO)
+        assert "831.452.674-90" not in p001.chave_pix_cifrada
+        assert p001.conta_corrente_cifrada is not None and p001.conta_corrente_cifrada.startswith(PREFIXO_CIFRADO)
+        assert "28901-3" not in p001.conta_corrente_cifrada
+
+    repo_db = RepositorioOperacional(engine=eng)
+    assert repo_db.verificar_agencia_produtor("P001", "0437") is True
+    assert repo_db.verificar_agencia_produtor("P001", "9999") is False
+
+    # Compara paridade exata entre SABOR_DATA_BACKEND=postgres e SABOR_DATA_BACKEND=csv nas tools
+    def _coletar_snapshot_tools() -> dict[str, Any]:
+        return {
+            "resumo_p001": obter_resumo_produtor(
+                "P001",
+                inicio="2026-09-01",
+                fim="2026-10-31",
+                data_referencia="2026-11-14",
+                agencia_informada="0437",
+            ),
+            "compliance_superbom": verificar_compliance_e_credito(
+                comprador="SuperBom",
+                tipo_cliente="supermercado",
+                produtos=["queijo coalho", "frango caipira", "alface"],
+                data_referencia="2026-11-14",
+            ),
+            "lote_exato": consultar_lotes(lote_id="LOT-2026-0089"),
+            "lote_inex": consultar_lotes(lote_id="2024-089"),
+            "pedidos_lista": consultar_pedidos_pendentes(),
+            "pedido_004": consultar_pedidos_pendentes("PED-2026-004"),
+            "item_mel_org": avaliar_item_catalogo(
+                "mel silvestre", 20, "kg", exige_organico=True, data_referencia="2026-10-28"
+            ),
+            "organicos": consultar_produtores_ou_organicos(
+                apenas_listar_organicos_vigentes=True, data_referencia="2026-10-28"
+            ),
+        }
+
+    snap_postgres = _coletar_snapshot_tools()
+    monkeypatch.setenv("SABOR_DATA_BACKEND", "csv")
+    snap_csv = _coletar_snapshot_tools()
+    assert snap_postgres == snap_csv
+
+    monkeypatch.delenv("DATABASE_URL", raising=False)
+    monkeypatch.setenv("SABOR_DATA_BACKEND", "postgres")
+    limpar_cache_conexoes()
+

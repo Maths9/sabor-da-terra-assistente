@@ -3,12 +3,17 @@
 from __future__ import annotations
 
 import json
+import os
 import sys
 from pathlib import Path
 
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
 if str(PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(PROJECT_ROOT))
+
+# Validação offline: isola de eventual instância PostgreSQL externa parada no .env local
+for _var in ("DATABASE_URL", "DB_HOST", "DB_PORT", "DB_NAME", "DB_USER", "DB_PASSWORD"):
+    os.environ.pop(_var, None)
 
 from google.adk.tools import FunctionTool
 from sabor_da_terra.tools import (
