@@ -8,11 +8,10 @@ from decimal import Decimal
 from typing import Any, Optional
 
 from sabor_da_terra.config import DADOS_DIR
+from sabor_da_terra.database.repositories import repositorio
 from sabor_da_terra.seguranca import norm_texto
 from sabor_da_terra.tools.comum import (
     fmt_decimal,
-    ler_csv,
-    ler_csv_bruto,
     parse_data_iso,
     resolver_data_ref,
     resposta,
@@ -62,12 +61,12 @@ def _analisar_credito_comprador(
     total_pendente = Decimal("0.00")
     total_vencido = Decimal("0.00")
 
-    for row in ler_csv(DADOS_DIR / "financeiro.csv"):
+    for row in repositorio.listar_transacoes_financeiras(status_pagamento="pendente"):
         comp_row = norm_texto(row.get("comprador", ""))
         casa = q_comp in comp_row or comp_row in q_comp or (
             bool(tokens_comp) and all(t in comp_row for t in tokens_comp)
         )
-        if not casa or norm_texto(row.get("status_pagamento", "")) != "pendente":
+        if not casa:
             continue
         val = Decimal(row.get("valor_total") or "0.00")
         dt_venc = parse_data_iso(row.get("data_vencimento"))
@@ -190,7 +189,9 @@ def verificar_compliance_e_credito(
         else None
     )
 
-    produtores_raw = ler_csv_bruto(DADOS_DIR / "produtores.csv")
+    produtores_raw = repositorio.listar_produtores(
+        filtrar_lgpd=True, remover_contato=True
+    )
     prods_alvo = [p.strip().upper() for p in (produtores_ids or []) if p and p.strip()]
     for prod_item in (norm_texto(x) for x in (produtos or []) if x and x.strip()):
         if prod_item in _TERMOS_GENERICOS:

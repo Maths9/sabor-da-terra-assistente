@@ -10,6 +10,7 @@ from pathlib import Path
 from typing import Any, Optional
 
 from sabor_da_terra.config import obter_data_referencia
+from sabor_da_terra.database.repositories import repositorio
 from sabor_da_terra.seguranca import CAMPOS_CONTATO_PESSOAL, CAMPOS_SENSIVEIS_LGPD
 
 try:
@@ -82,24 +83,21 @@ def ler_csv(
     filtrar_lgpd: bool = True,
     remover_contato: bool = True,
 ) -> list[dict[str, str]]:
-    """Lê um CSV removendo por padrão colunas sensíveis LGPD e de contato pessoal."""
-    with caminho.open("r", encoding="utf-8-sig", newline="") as f:
-        linhas = list(csv.DictReader(f))
-    if not filtrar_lgpd and not remover_contato:
-        return linhas
-    proibidos = set(CAMPOS_SENSIVEIS_LGPD) if filtrar_lgpd else set()
-    if remover_contato:
-        proibidos |= CAMPOS_CONTATO_PESSOAL
-    return [
-        {k: v for k, v in row.items() if k.lower() not in proibidos}
-        for row in linhas
-    ]
+    """Consulta a tabela correspondente no banco (ou CSV no modo fallback) removendo colunas LGPD e contato."""
+    return repositorio.ler_tabela_por_caminho(
+        caminho,
+        filtrar_lgpd=filtrar_lgpd,
+        remover_contato=remover_contato,
+    )
 
 
 def ler_csv_bruto(caminho: Path) -> list[dict[str, str]]:
     """Leitura interna apenas para validações locais sem retorno direto ao LLM."""
-    with caminho.open("r", encoding="utf-8-sig", newline="") as f:
-        return list(csv.DictReader(f))
+    return repositorio.ler_tabela_por_caminho(
+        caminho,
+        filtrar_lgpd=False,
+        remover_contato=False,
+    )
 
 
 def registrar_estado(

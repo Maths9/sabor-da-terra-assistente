@@ -5,13 +5,12 @@ from __future__ import annotations
 import re
 from typing import Any, Optional
 
-from sabor_da_terra.config import DADOS_DIR
+from sabor_da_terra.database.repositories import repositorio
 from sabor_da_terra.seguranca import norm_texto
 from sabor_da_terra.tools.comum import (
     DATA_REFERENCIA_PADRAO,
     MESES_COL,
     EntradaInvalida,
-    ler_csv,
     resposta,
     validar_data,
 )
@@ -172,10 +171,7 @@ def avaliar_item_catalogo(
         validar_quantidade(quantidade)
         termo = ALIASES_RAPIDOS.get(norm_texto(produto), norm_texto(produto))
         precos = tabela_precos_vigente()
-        sazonalidade = {
-            norm_texto(r["produto"]): r
-            for r in ler_csv(DADOS_DIR / "sazonalidade.csv", filtrar_lgpd=False, remover_contato=False)
-        }
+        sazonalidade = repositorio.obter_mapa_sazonalidade()
 
         if any(g in termo for g in ("variada", "variado", "queijo q vcs", "mais artesanal")):
             return resposta(

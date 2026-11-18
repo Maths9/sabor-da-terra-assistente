@@ -6,9 +6,8 @@ import re
 from datetime import date
 from typing import Any
 
-from sabor_da_terra.config import DADOS_DIR
+from sabor_da_terra.database.repositories import repositorio
 from sabor_da_terra.seguranca import norm_texto
-from sabor_da_terra.tools.comum import ler_csv_bruto
 
 PRODUTORES_COM_SIE = {"P002", "P003", "P007"}
 PRODUTORES_SEM_SIE = {
@@ -41,12 +40,13 @@ def cliente_exige_sie(tipo_cliente: str) -> bool:
 
 
 def mapa_unidades_produtos() -> dict[str, str]:
-    """Monta mapa produto -> unidade oficial a partir da tabela de preços vigente."""
-    arquivos = sorted(DADOS_DIR.glob("tabela_precos_*.csv"))
-    if not arquivos:
+    """Monta mapa produto -> unidade oficial a partir da tabela de preços vigente no banco."""
+    try:
+        linhas_precos = repositorio.obter_tabela_precos_vigente()
+    except (FileNotFoundError, OSError):
         return {}
     unidades: dict[str, str] = {}
-    for row in ler_csv_bruto(arquivos[-1]):
+    for row in linhas_precos:
         prod_n = norm_texto(row.get("produto", ""))
         uni = (row.get("unidade") or "kg").strip()
         unidades[prod_n] = uni

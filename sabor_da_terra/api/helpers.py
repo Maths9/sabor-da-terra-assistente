@@ -6,9 +6,8 @@ from datetime import date, datetime, timezone
 from decimal import Decimal
 from typing import Any
 
-from sabor_da_terra.config import DADOS_DIR
+from sabor_da_terra.database.repositories import repositorio
 from sabor_da_terra.seguranca import sanitizar_pii_texto
-from sabor_da_terra.tools import ler_csv
 
 
 def _fmt_brl(valor: str | Decimal) -> str:
@@ -182,7 +181,7 @@ def extrair_mensagens_dos_eventos(events: list[Any]) -> list[dict[str, Any]]:
 
 def listar_produtores_publicos() -> list[dict[str, Any]]:
     """Lista produtores cooperados sem campos pessoais ou sensíveis (LGPD)."""
-    linhas = ler_csv(DADOS_DIR / "produtores.csv", remover_contato=True)
+    linhas = repositorio.listar_produtores(filtrar_lgpd=True, remover_contato=True)
     resultado = []
     for row in linhas:
         resultado.append(

@@ -5,12 +5,11 @@ from __future__ import annotations
 from datetime import date
 from typing import Any, Optional
 
-from sabor_da_terra.config import DADOS_DIR
+from sabor_da_terra.database.repositories import repositorio
 from sabor_da_terra.seguranca import norm_texto, sanitizar_pii_texto
 from sabor_da_terra.tools.comum import (
     DATA_REFERENCIA_PADRAO,
     EntradaInvalida,
-    ler_csv,
     resposta,
     validar_data,
 )
@@ -24,8 +23,8 @@ def consultar_produtores_ou_organicos(
     """Identifica produtor cooperado (por nome, telefone, município ou produto, sem expor CPF/PIX) ou lista todo o catálogo orgânico vigente."""
     try:
         dt_ref = validar_data(data_referencia)
-        produtores = ler_csv(
-            DADOS_DIR / "produtores.csv", filtrar_lgpd=True, remover_contato=False
+        produtores = repositorio.listar_produtores(
+            filtrar_lgpd=True, remover_contato=False
         )
 
         if apenas_listar_organicos_vigentes:

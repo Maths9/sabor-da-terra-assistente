@@ -5,11 +5,10 @@ from __future__ import annotations
 from datetime import date
 from typing import Any, Optional
 
-from sabor_da_terra.config import DADOS_DIR
+from sabor_da_terra.database.repositories import repositorio
 from sabor_da_terra.seguranca import norm_texto, sanitizar_pii_texto
 from sabor_da_terra.tools.comum import (
     ToolContext,
-    ler_csv,
     registrar_estado,
     resolver_data_ref,
     resposta,
@@ -127,10 +126,7 @@ def redigir_notificacao(
     except ValueError:
         return resposta("entrada_invalida", mensagem="data_referencia inválida (use AAAA-MM-DD).")
 
-    prod = next(
-        (p for p in ler_csv(DADOS_DIR / "produtores.csv") if p["id"].upper() == pid),
-        None,
-    )
+    prod = repositorio.obter_produtor_por_id(pid, remover_contato=True)
     if not prod:
         return resposta("nao_encontrado", mensagem=f"Produtor '{pid}' não encontrado no cadastro.")
 

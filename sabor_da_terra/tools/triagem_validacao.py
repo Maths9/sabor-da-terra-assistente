@@ -6,9 +6,9 @@ import re
 from datetime import date
 from typing import Any, Optional, get_args
 
-from sabor_da_terra.config import DADOS_DIR
+from sabor_da_terra.database.repositories import repositorio
 from sabor_da_terra.seguranca import norm_texto
-from sabor_da_terra.tools.comum import EntradaInvalida, ler_csv, validar_data
+from sabor_da_terra.tools.comum import EntradaInvalida, validar_data
 from sabor_da_terra.tools.schemas import TipoDemanda
 
 MESES_VALIDOS = set(range(1, 13))
@@ -84,13 +84,8 @@ def normalizar_tipo_demanda(valor: str) -> str:
 
 
 def tabela_precos_vigente() -> list[dict[str, str]]:
-    """Carrega o CSV mais recente `tabela_precos_*.csv`."""
-    arquivos = sorted(DADOS_DIR.glob("tabela_precos_*.csv"))
-    if not arquivos:
-        raise FileNotFoundError(
-            f"Nenhuma tabela de preços (tabela_precos_*.csv) encontrada em {DADOS_DIR}."
-        )
-    return ler_csv(arquivos[-1], filtrar_lgpd=False, remover_contato=False)
+    """Carrega a tabela de preços vigente a partir do repositório operacional."""
+    return repositorio.obter_tabela_precos_vigente()
 
 
 def buscar_sazonalidade(
@@ -119,7 +114,7 @@ def buscar_produtores_aptos(
     aptos, bloqueados, alertas = [], [], []
     dt_ref = validar_data(data_ref)
 
-    for p in ler_csv(DADOS_DIR / "produtores.csv", filtrar_lgpd=True, remover_contato=True):
+    for p in repositorio.listar_produtores(filtrar_lgpd=True, remover_contato=True):
         prods_p = norm_texto(p.get("produtos", ""))
         if not any(t in prods_p for t in tokens_cat):
             continue

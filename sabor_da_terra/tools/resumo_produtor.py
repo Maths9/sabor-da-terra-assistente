@@ -7,13 +7,11 @@ from datetime import date
 from decimal import Decimal
 from typing import Any, Optional
 
-from sabor_da_terra.config import DADOS_DIR
+from sabor_da_terra.database.repositories import repositorio
 from sabor_da_terra.seguranca import norm_texto
 from sabor_da_terra.tools.comum import (
     ToolContext,
     fmt_decimal,
-    ler_csv,
-    ler_csv_bruto,
     parse_data_iso,
     registrar_estado,
     resolver_data_ref,
@@ -42,9 +40,11 @@ def _coletar_financeiro_produtor(
     transacoes: list[dict[str, Any]] = []
     pendencias: list[dict[str, Any]] = []
 
-    for row in ler_csv(DADOS_DIR / "financeiro.csv"):
-        if row.get("produtor_id", "").upper() != pid:
-            continue
+    for row in repositorio.listar_transacoes_financeiras(
+        produtor_id=pid,
+        data_inicio=dt_inicio,
+        data_fim=dt_fim,
+    ):
         dt_venda = parse_data_iso(row.get("data"))
         if dt_venda is None or not (dt_inicio <= dt_venda <= dt_fim):
             continue
@@ -110,9 +110,11 @@ def _coletar_pedidos_alocados(
     tool_context: Optional[ToolContext],
 ) -> list[dict[str, Any]]:
     pedidos_alocados: list[dict[str, Any]] = []
-    for lote in ler_csv(DADOS_DIR / "lotes.csv"):
-        if lote.get("produtor_id", "").upper() != pid:
-            continue
+    for lote in repositorio.listar_lotes(
+        produtor_id=pid,
+        data_entrega_inicio=dt_inicio,
+        data_entrega_fim=dt_fim,
+    ):
         dt_ent = parse_data_iso(lote.get("data_entrega"))
         if dt_ent is None or not (dt_inicio <= dt_ent <= dt_fim):
             continue
@@ -185,9 +187,8 @@ def obter_resumo_produtor(
             mensagem="A data de início não pode ser posterior à data de fim.",
         )
 
-    prod_raw = next(
-        (p for p in ler_csv_bruto(DADOS_DIR / "produtores.csv") if p["id"].upper() == pid),
-        None,
+    prod_raw = repositorio.obter_produtor_por_id(
+        pid, remover_contato=True, incluir_agencia_interna=True
     )
     if not prod_raw:
         return resposta("nao_encontrado", mensagem=f"Produtor '{pid}' não encontrado no cadastro.")

@@ -2,13 +2,12 @@
 
 from __future__ import annotations
 
-import json
 import re
 from typing import Any, Optional
 
-from sabor_da_terra.config import DADOS_DIR
+from sabor_da_terra.database.repositories import repositorio
 from sabor_da_terra.seguranca import norm_texto, sanitizar_pii_texto
-from sabor_da_terra.tools.comum import ToolContext, ler_csv, registrar_estado, resposta
+from sabor_da_terra.tools.comum import ToolContext, registrar_estado, resposta
 
 _FOLHOSAS = {"alface", "coentro", "cebolinha", "rucula", "espinafre", "couve"}
 
@@ -42,17 +41,16 @@ def consultar_lotes(
     comprador: Optional[str] = None,
 ) -> dict[str, Any]:
     """Consulta rastreabilidade de lotes entregues em lotes.csv sem expor CPF."""
-    lotes = ler_csv(DADOS_DIR / "lotes.csv")
-
     if lote_id:
         alvo = lote_id.strip().upper()
-        exatos = [l for l in lotes if l["lote_id"].upper() == alvo]
+        exatos = repositorio.listar_lotes(lote_id=alvo)
         if exatos:
             alertas: list[str] = []
             for item in exatos:
                 alertas.extend(_alertas_lote(item))
             return resposta("ok", dados={"lotes": exatos, "alertas_rastreabilidade": alertas})
 
+        lotes = repositorio.listar_lotes()
         digitos_fim = re.findall(r"\d+$", alvo)
         sufixo = digitos_fim[0].lstrip("0") if digitos_fim else ""
         parecidos = (
@@ -76,10 +74,9 @@ def consultar_lotes(
             ),
         )
 
-    filtrados = lotes
-    if produtor_id:
-        pid = produtor_id.strip().upper()
-        filtrados = [l for l in filtrados if l["produtor_id"].upper() == pid]
+    filtrados = repositorio.listar_lotes(
+        produtor_id=produtor_id.strip().upper() if produtor_id else None
+    )
     if produto:
         q_prod = norm_texto(produto)
         filtrados = [l for l in filtrados if q_prod in norm_texto(l["produto"])]
@@ -108,14 +105,10 @@ def consultar_pedidos_pendentes(
     id_pedido: Optional[str] = None,
     tool_context: Optional[ToolContext] = None,
 ) -> dict[str, Any]:
-    """Lista os pedidos pendentes de pedidos.json ou retorna o texto sanitizado de um pedido específico."""
-    caminho = DADOS_DIR / "pedidos.json"
-    with caminho.open("r", encoding="utf-8") as f:
-        pedidos = json.load(f)
-
+    """Lista os pedidos pendentes ou retorna o texto sanitizado de um pedido específico."""
     if id_pedido:
         alvo = id_pedido.strip().upper()
-        achado = next((p for p in pedidos if p["id"].upper() == alvo), None)
+        achado = repositorio.obter_pedido_por_id(alvo)
         if not achado:
             return resposta(
                 "nao_encontrado",
@@ -150,6 +143,7 @@ def consultar_pedidos_pendentes(
         )
         return resposta("ok", dados=pedido_limpo)
 
+    pedidos = repositorio.listar_pedidos()
     resumo = [
         {
             "id": p["id"],
