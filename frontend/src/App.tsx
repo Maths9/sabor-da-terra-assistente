@@ -10,6 +10,8 @@ import {
   getActiveAuthSession,
   loginPerfil,
   logoutAuthSession,
+  setAuthExpiredHandler,
+  verificarAuthSessao,
 } from "./services/agentService";
 import type { UserType } from "./types";
 
@@ -26,12 +28,40 @@ export default function App() {
     sessaoInicial?.produtorId ?? null
   );
   const [requerCodigo, setRequerCodigo] = useState(false);
+  const [validandoSessao, setValidandoSessao] = useState<boolean>(Boolean(sessaoInicial));
+  const [authNotice, setAuthNotice] = useState<string | null>(null);
 
   useEffect(() => {
-    fetchAuthConfig().then((cfg) => setRequerCodigo(Boolean(cfg.requer_codigo)));
+    let ativo = true;
+
+    setAuthExpiredHandler((perfil) => {
+      if (!ativo) return;
+      setAuthNotice("Sua sessão expirou ou foi invalidada. Faça acesso novamente.");
+      setView(perfil === "operador" ? "operador-login" : "login");
+    });
+
+    Promise.all([fetchAuthConfig(), sessaoInicial ? verificarAuthSessao() : Promise.resolve(null)])
+      .then(([cfg, sessaoValidada]) => {
+        if (!ativo) return;
+        setRequerCodigo(Boolean(cfg.requer_codigo));
+        if (sessaoInicial && !sessaoValidada) {
+          setAuthNotice("Sua sessão anterior expirou. Informe o código de acesso novamente.");
+          setView(sessaoInicial.perfil === "operador" ? "operador-login" : "login");
+        }
+      })
+      .finally(() => {
+        if (ativo) setValidandoSessao(false);
+      });
+
+    return () => {
+      ativo = false;
+      setAuthExpiredHandler(null);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const abrirOperador = async () => {
+    setAuthNotice(null);
     const atual = getActiveAuthSession();
     if (atual?.perfil === "operador") {
       setView("operador");
@@ -50,6 +80,7 @@ export default function App() {
   };
 
   const go = (a: UserType) => {
+    setAuthNotice(null);
     if (a === "operador") {
       void abrirOperador();
       return;
@@ -64,8 +95,20 @@ export default function App() {
 
   const voltarInicio = () => {
     logoutAuthSession();
+    setAuthNotice(null);
     setView("home");
   };
+
+  if (validandoSessao) {
+    return (
+      <main className="center">
+        <div className="card login">
+          <strong>Validando sessão…</strong>
+          <small>Verificando credenciais com o assistente da cooperativa.</small>
+        </div>
+      </main>
+    );
+  }
 
   return (
     <>
@@ -79,6 +122,7 @@ export default function App() {
       {view === "home" && (
         <ProfileSelect
           onSelect={(a) => {
+            setAuthNotice(null);
             if (a === "operador") {
               void abrirOperador();
             } else {
@@ -90,14 +134,20 @@ export default function App() {
       {view === "operador" && <OperadorPage />}
       {view === "operador-login" && (
         <OperatorLogin
-          onEnter={() => setView("operador")}
+          notice={authNotice}
+          onEnter={() => {
+            setAuthNotice(null);
+            setView("operador");
+          }}
           onBack={voltarInicio}
         />
       )}
       {view === "login" && (
         <ProducerLogin
           initialProdutorId={selectedProdutorId}
+          notice={authNotice}
           onEnter={(id) => {
+            setAuthNotice(null);
             setSelectedProdutorId(id);
             setView("produtor");
           }}
@@ -107,7 +157,10 @@ export default function App() {
       {view === "produtor" && selectedProdutorId && (
         <ProducerPage
           produtorId={selectedProdutorId}
-          onTrocarProdutor={() => setView("login")}
+          onTrocarProdutor={() => {
+            setAuthNotice(null);
+            setView("login");
+          }}
         />
       )}
     </>

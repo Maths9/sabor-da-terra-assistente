@@ -4,11 +4,12 @@ from __future__ import annotations
 
 import re
 
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, Depends, HTTPException
 
 from sabor_da_terra.api.auth import (
     IdentidadeSessao,
     emitir_token_sessao,
+    exigir_identidade,
     normalizar_perfil,
     requer_codigo_acesso,
     verificar_codigo_acesso,
@@ -16,6 +17,7 @@ from sabor_da_terra.api.auth import (
 from sabor_da_terra.api.helpers import listar_produtores_publicos
 from sabor_da_terra.api.schemas import (
     AuthConfigResponse,
+    AuthSessaoInfoResponse,
     AuthSessaoRequest,
     AuthSessaoResponse,
 )
@@ -30,6 +32,16 @@ def criar_router_auth() -> APIRouter:
         return AuthConfigResponse(
             requer_codigo=requer_codigo_acesso(),
             perfis_disponiveis=["operador", "produtor"],
+        )
+
+    @router.get("/sessao", response_model=AuthSessaoInfoResponse)
+    async def api_verificar_sessao_acesso(
+        identidade: IdentidadeSessao = Depends(exigir_identidade),
+    ) -> AuthSessaoInfoResponse:
+        return AuthSessaoInfoResponse(
+            user_id=identidade.user_id,
+            perfil=identidade.perfil,
+            produtor_id=identidade.produtor_id,
         )
 
     @router.post("/sessao", response_model=AuthSessaoResponse)

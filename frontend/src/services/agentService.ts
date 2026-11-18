@@ -6,8 +6,13 @@ import type {
   AuthSession,
   ChatMessage,
   FonteDocumento,
+  HealthStatus,
+  PedidoPendenteResumo,
   ProducerProfile,
   ProdutorListaItem,
+  ResultadoTriagemResumo,
+  SessionContextState,
+  UltimoPedidoResumo,
   UserType,
 } from "../types";
 import { boasVindas } from "../data/mockData";
@@ -21,9 +26,14 @@ const STORAGE_AUTH_KEY = "sabor_da_terra.auth_session";
 const STORAGE_SESSOES_KEY = "sabor_da_terra.session_ids";
 
 const historico: Record<string, ChatMessage[]> = {};
+const estadoSessao: Record<string, SessionContextState | null> = {};
+const geracaoConversa: Record<string, number> = {};
+const deletesEmAndamento: Record<string, Promise<void> | undefined> = {};
+
 let sessoes: Record<string, string> = carregarSessoesStorage();
 let authAtual: AuthSession | null = carregarAuthStorage();
 let authConfigCache: AuthConfig | null = null;
+let authExpiredHandler: ((perfil: UserType) => void) | null = null;
 
 function carregarSessoesStorage(): Record<string, string> {
   try {
@@ -98,6 +108,39 @@ function definirSessionId(chave: string, sessionId: string): void {
   }
 }
 
+function incrementarGeracao(chave: string): number {
+  const prox = (geracaoConversa[chave] ?? 0) + 1;
+  geracaoConversa[chave] = prox;
+  return prox;
+}
+
+function extrairEstadoSessao(raw: unknown): SessionContextState | null {
+  if (!raw || typeof raw !== "object") return null;
+  const obj = raw as Record<string, unknown>;
+  const focoRaw = obj.produtor_em_foco;
+  let produtorEmFoco: string | null = null;
+  if (typeof focoRaw === "string" && focoRaw.trim()) {
+    produtorEmFoco = focoRaw.trim();
+  } else if (focoRaw && typeof focoRaw === "object") {
+    const pid = (focoRaw as Record<string, unknown>).produtor_id;
+    if (typeof pid === "string" && pid.trim()) produtorEmFoco = pid.trim();
+  }
+
+  const ultimoPedido =
+    obj.ultimo_pedido && typeof obj.ultimo_pedido === "object"
+      ? (obj.ultimo_pedido as UltimoPedidoResumo)
+      : null;
+  const resultadoTriagem =
+    obj.resultado_triagem && typeof obj.resultado_triagem === "object"
+      ? (obj.resultado_triagem as ResultadoTriagemResumo)
+      : null;
+
+  if (!produtorEmFoco && !ultimoPedido && !resultadoTriagem) {
+    return null;
+  }
+  return { produtorEmFoco, ultimoPedido, resultadoTriagem };
+}
+
 const novaMsg = (
   role: ChatMessage["role"],
   content: string,
@@ -111,6 +154,10 @@ const novaMsg = (
   ...(extra?.erro ? { erro: true } : {}),
 });
 
+export function setAuthExpiredHandler(handler: ((perfil: UserType) => void) | null): void {
+  authExpiredHandler = handler;
+}
+
 export function getActiveAuthSession(): AuthSession | null {
   return authAtual;
 }
@@ -119,8 +166,20 @@ export function logoutAuthSession(): void {
   salvarAuthStorage(null);
 }
 
-export async function fetchAuthConfig(): Promise<AuthConfig> {
-  if (authConfigCache) return authConfigCache;
+export function getSessionContextState(userType: UserType, produtorId?: string): SessionContextState | null {
+  return estadoSessao[chaveSessao(userType, produtorId)] ?? null;
+}
+
+export async function fetchHealth(): Promise<HealthStatus> {
+  const res = await fetch(`${API_BASE}/api/health`);
+  if (!res.ok) {
+    throw new Error(`API indisponível (HTTP ${res.status})`);
+  }
+  return res.json();
+}
+
+export async function fetchAuthConfig(forceRefresh = false): Promise<AuthConfig> {
+  if (authConfigCache && !forceRefresh) return authConfigCache;
   try {
     const res = await fetch(`${API_BASE}/api/auth/config`);
     if (res.ok) {
@@ -131,7 +190,7 @@ export async function fetchAuthConfig(): Promise<AuthConfig> {
   } catch {
     // Fallback em caso de offline inicial
   }
-  return { requer_codigo: false, perfis_disponiveis: ["operador", "produtor"] };
+  return authConfigCache ?? { requer_codigo: false, perfis_disponiveis: ["operador", "produtor"] };
 }
 
 export async function loginPerfil(
@@ -171,6 +230,40 @@ export async function loginPerfil(
   return sessao;
 }
 
+export async function verificarAuthSessao(): Promise<AuthSession | null> {
+  if (!authAtual) return null;
+  const atual = authAtual;
+  try {
+    const res = await fetch(`${API_BASE}/api/auth/sessao`, {
+      method: "GET",
+      headers: { Authorization: `Bearer ${atual.accessToken}` },
+    });
+    if (res.ok) {
+      const info = await res.json();
+      const confirmada: AuthSession = {
+        accessToken: atual.accessToken,
+        userId: info.user_id ?? atual.userId,
+        perfil: info.perfil ?? atual.perfil,
+        produtorId: info.produtor_id ?? atual.produtorId ?? null,
+      };
+      salvarAuthStorage(confirmada);
+      return confirmada;
+    }
+    if (res.status === 401) {
+      const cfg = await fetchAuthConfig(true);
+      salvarAuthStorage(null);
+      if (!cfg.requer_codigo) {
+        return await loginPerfil(atual.perfil, atual.produtorId ?? undefined);
+      }
+      return null;
+    }
+  } catch {
+    // Em falha de rede momentânea, mantém o estado local até nova tentativa
+    return atual;
+  }
+  return atual;
+}
+
 function authCorresponde(sess: AuthSession | null, userType: UserType, produtorId?: string): boolean {
   if (!sess) return false;
   if (sess.perfil !== userType) return false;
@@ -186,6 +279,7 @@ async function garantirAuth(userType: UserType, produtorId?: string): Promise<Au
   }
   const cfg = await fetchAuthConfig();
   if (cfg.requer_codigo) {
+    authExpiredHandler?.(userType);
     throw new Error("Autenticação com código de acesso necessária para este perfil.");
   }
   return loginPerfil(userType, produtorId);
@@ -203,13 +297,15 @@ async function authFetch(
 
   let res = await fetch(`${API_BASE}${path}`, { ...init, headers });
   if (res.status === 401) {
-    const cfg = await fetchAuthConfig();
+    const cfg = await fetchAuthConfig(true);
+    salvarAuthStorage(null);
     if (!cfg.requer_codigo) {
-      salvarAuthStorage(null);
       sess = await loginPerfil(userType, produtorId);
       const retryHeaders = new Headers(init.headers || {});
       retryHeaders.set("Authorization", `Bearer ${sess.accessToken}`);
       res = await fetch(`${API_BASE}${path}`, { ...init, headers: retryHeaders });
+    } else {
+      authExpiredHandler?.(userType);
     }
   }
   return res;
@@ -229,6 +325,13 @@ export async function restoreConversation(
 ): Promise<ChatMessage[]> {
   const chave = chaveSessao(userType, produtorId);
   const userId = userIdParaContexto(userType, produtorId);
+
+  const deletePendente = deletesEmAndamento[chave];
+  if (deletePendente) {
+    await deletePendente;
+  }
+
+  const geracaoInicial = geracaoConversa[chave] ?? 0;
 
   try {
     await garantirAuth(userType, produtorId);
@@ -254,7 +357,9 @@ export async function restoreConversation(
         const sessoesApi = Array.isArray(listaBody?.sessoes) ? listaBody.sessoes : [];
         if (sessoesApi.length > 0 && sessoesApi[0]?.session_id) {
           sessionId = String(sessoesApi[0].session_id);
-          definirSessionId(chave, sessionId);
+          if ((geracaoConversa[chave] ?? 0) === geracaoInicial) {
+            definirSessionId(chave, sessionId);
+          }
           detalheRes = await authFetch(
             `/api/sessoes/${encodeURIComponent(userId)}/${encodeURIComponent(sessionId)}`,
             { method: "GET" },
@@ -265,8 +370,16 @@ export async function restoreConversation(
       }
     }
 
+    if ((geracaoConversa[chave] ?? 0) !== geracaoInicial) {
+      return getConversationHistory(userType, produtorId);
+    }
+
     if (detalheRes && detalheRes.ok) {
       const detalhe = await detalheRes.json();
+      if ((geracaoConversa[chave] ?? 0) !== geracaoInicial) {
+        return getConversationHistory(userType, produtorId);
+      }
+      estadoSessao[chave] = extrairEstadoSessao(detalhe?.state);
       const mensagensBackend: ChatMessage[] = Array.isArray(detalhe?.mensagens)
         ? detalhe.mensagens.map((m: ChatMessage) => ({
             id: m.id || crypto.randomUUID(),
@@ -295,9 +408,15 @@ export async function sendMessage(
   produtorId?: string
 ): Promise<ChatMessage> {
   const chave = chaveSessao(userType, produtorId);
+  const deletePendente = deletesEmAndamento[chave];
+  if (deletePendente) {
+    await deletePendente;
+  }
+
+  const geracaoEnvio = incrementarGeracao(chave);
   const sessionId = obterOuCriarSessionId(chave);
 
-  if (!historico[chave]) {
+  if (!historico[chave] || historico[chave].length === 0) {
     historico[chave] = [novaMsg("assistant", boasVindas[userType])];
   }
   historico[chave].push(novaMsg("user", message));
@@ -331,14 +450,17 @@ export async function sendMessage(
     }
 
     const data = await res.json();
-    if (data?.session_id) {
-      definirSessionId(chave, data.session_id);
-    }
-
     const texto = data?.resposta || "Não recebi uma resposta do assistente.";
     const fontes: FonteDocumento[] = Array.isArray(data?.fontes) ? data.fontes : [];
     const resposta = novaMsg("assistant", texto, { fontes });
-    historico[chave].push(resposta);
+
+    if ((geracaoConversa[chave] ?? 0) === geracaoEnvio) {
+      if (data?.session_id) {
+        definirSessionId(chave, data.session_id);
+      }
+      estadoSessao[chave] = extrairEstadoSessao(data);
+      historico[chave].push(resposta);
+    }
     return resposta;
   } catch (err) {
     const motivo = err instanceof Error ? err.message : "Erro de conexão com o servidor.";
@@ -347,27 +469,57 @@ export async function sendMessage(
       `Não foi possível consultar o assistente no momento (${motivo}). Verifique se a API está em execução.`,
       { erro: true }
     );
-    historico[chave].push(msgErro);
+    if ((geracaoConversa[chave] ?? 0) === geracaoEnvio) {
+      historico[chave].push(msgErro);
+    }
     return msgErro;
   }
 }
 
-export function clearConversation(userType: UserType, produtorId?: string): void {
+export async function clearConversation(userType: UserType, produtorId?: string): Promise<void> {
   const chave = chaveSessao(userType, produtorId);
   const sessionAnterior = sessoes[chave];
   const userId = userIdParaContexto(userType, produtorId);
 
+  incrementarGeracao(chave);
   historico[chave] = [];
+  estadoSessao[chave] = null;
   definirSessionId(chave, crypto.randomUUID());
 
   if (sessionAnterior) {
-    authFetch(
+    const op = authFetch(
       `/api/sessoes/${encodeURIComponent(userId)}/${encodeURIComponent(sessionAnterior)}`,
       { method: "DELETE" },
       userType,
       produtorId
-    ).catch(() => undefined);
+    )
+      .then(() => undefined)
+      .catch(() => undefined)
+      .finally(() => {
+        if (deletesEmAndamento[chave] === op) {
+          delete deletesEmAndamento[chave];
+        }
+      });
+    deletesEmAndamento[chave] = op;
+    await op;
   }
+}
+
+export async function fetchPedidosPendentes(): Promise<PedidoPendenteResumo[]> {
+  const res = await authFetch("/api/pedidos-pendentes", { method: "GET" }, "operador");
+  if (!res.ok) {
+    let detalhe = `HTTP ${res.status}`;
+    try {
+      const errBody = await res.json();
+      detalhe = errBody?.detail || detalhe;
+    } catch {
+      // Ignora corpo não JSON
+    }
+    throw new Error(`Falha ao carregar caixa de pedidos (${detalhe})`);
+  }
+  const body = await res.json();
+  const pedidos = body?.dados?.pedidos;
+  return Array.isArray(pedidos) ? pedidos : [];
 }
 
 export async function fetchProdutores(): Promise<ProdutorListaItem[]> {

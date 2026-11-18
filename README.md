@@ -25,19 +25,13 @@ sabor_da_terra/
 
 ## Configurar e executar
 
-Crie uma chave de API no [Google AI Studio](https://aistudio.google.com/apikey). Copie `sabor_da_terra/.env.example` para `sabor_da_terra/.env` e substitua `sua_chave_aqui` pela sua chave. No Linux ou macOS:
+Configure suas credenciais no `.env` da raiz (veja a seção de Docker abaixo) ou em `sabor_da_terra/.env` (a partir de `sabor_da_terra/.env.example`):
 
 ```bash
-cp sabor_da_terra/.env.example sabor_da_terra/.env
+cp sabor_da_terra/.env.example .env
 ```
 
-Com o ambiente virtual ativado, execute o agente no terminal a partir da raiz do projeto:
-
-```bash
-adk run sabor_da_terra
-```
-
-Para usar a interface web local do ADK, execute `adk web` na raiz do projeto e selecione `sabor_da_terra`. Consulte o [guia oficial do ADK](https://adk.dev/get-started/python/) para mais detalhes. O arquivo `.env` contém credenciais e é ignorado pelo Git.
+> **Nota sobre RBAC e ADK direto (`adk run` / `adk web`):** o guardrail `validar_acesso_tool` é *fail-closed* e exige `perfil_usuario` no `session.state` (`"operador"` ou `"produtor"` + `"produtor_em_foco"`). Pela API + Interface React abaixo isso é preenchido automaticamente a partir do token de sessão; ao testar diretamente com `adk run sabor_da_terra` ou `adk web` na raiz do projeto, informe `perfil_usuario` no estado inicial da sessão (como em `validacao/evalset_cooperativa.evalset.json`). Consulte o [guia oficial do ADK](https://adk.dev/get-started/python/) para mais detalhes. O arquivo `.env` contém credenciais e é ignorado pelo Git.
 
 ## Executar API + Interface Frontend (React)
 
@@ -55,7 +49,7 @@ npm install
 npm run dev
 ```
 
-3. Acesse `http://localhost:5173` (ou `http://127.0.0.1:8080` se `frontend/dist` já estiver compilado) para escolher entre **Área do Operador** e **Área do Produtor**.
+3. Acesse `http://localhost:5173` para escolher entre **Área do Operador** e **Área do Produtor**. Se quiser servir tudo pela porta `8080` diretamente pelo FastAPI sem `npm run dev`, gere o build estático antes com `cd frontend && npm run build`.
 
 ## Executar com Docker
 

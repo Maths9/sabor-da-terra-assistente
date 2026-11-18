@@ -41,6 +41,14 @@ class AuthSessaoResponse(BaseModel):
     expires_in: int
 
 
+class AuthSessaoInfoResponse(BaseModel):
+    """Identidade autenticada validada a partir do Bearer Token."""
+
+    user_id: str
+    perfil: Literal["operador", "produtor"]
+    produtor_id: Optional[str] = None
+
+
 class ChatRequest(BaseModel):
     """Payload enviado pela interface para conversar com o assistente."""
 

@@ -961,6 +961,159 @@ def test_api_endpoints_e_chat_sessao(monkeypatch, tmp_path) -> None:
         == 200
     )
 
+    # Validação de token em GET /api/auth/sessao
+    assert client.get("/api/auth/sessao").status_code == 401
+    assert client.get("/api/auth/sessao", headers={"Authorization": "Bearer invalido"}).status_code == 401
+    res_check_op = client.get("/api/auth/sessao", headers=hdr_op)
+    assert res_check_op.status_code == 200
+    assert res_check_op.json() == {"user_id": "operador", "perfil": "operador", "produtor_id": None}
+    res_check_p1 = client.get("/api/auth/sessao", headers=hdr_p001)
+    assert res_check_p1.status_code == 200
+    assert res_check_p1.json() == {
+        "user_id": "produtor_P001",
+        "perfil": "produtor",
+        "produtor_id": "P001",
+    }
+
+
+def test_api_com_runner_adk_real_e_callbacks(monkeypatch, tmp_path) -> None:
+    import shutil
+    import chromadb
+    from google.adk.models.base_llm import BaseLlm
+    import sabor_da_terra.rag as rag_mod
+
+    monkeypatch.setenv("SABOR_AUTH_SECRET", "segredo-runner-real-integracao-32-bytes")
+
+    idx_copia = tmp_path / "index_runner_real"
+    shutil.copytree(RAG_STORE_DIR, idx_copia)
+    monkeypatch.setattr(rag_mod, "RAG_STORE_DIR", idx_copia)
+
+    col = chromadb.PersistentClient(path=str(idx_copia)).get_collection("sabor_da_terra_docs")
+    amostra = col.get(include=["embeddings", "metadatas"])
+    adagro_emb = [
+        float(x)
+        for x in amostra["embeddings"][
+            next(i for i, m in enumerate(amostra["metadatas"]) if "inspecao_adagro_2026" in m.get("arquivo", ""))
+        ]
+    ]
+    monkeypatch.setattr(rag_mod, "_gerar_embeddings", lambda textos, **kw: [adagro_emb for _ in textos])
+
+    class _StubRunnerLlm(BaseLlm):
+        model: str = "stub-runner-llm"
+
+        async def generate_content_async(self, llm_request, stream=False):
+            user_txt = " ".join(
+                p.text
+                for c in llm_request.contents
+                if c.role == "user"
+                for p in (c.parts or [])
+                if p.text
+            )
+            has_tool_resp = any(
+                p.function_response for c in llm_request.contents for p in (c.parts or [])
+            )
+            if not has_tool_resp and "adagro" in user_txt.lower():
+                yield LlmResponse(
+                    content=types.Content(
+                        role="model",
+                        parts=[
+                            types.Part.from_function_call(
+                                name="consultar_documentos",
+                                args={"pergunta": "ADAGRO NC-001", "tipo_documento": "inspecao"},
+                            )
+                        ],
+                    )
+                )
+            elif not has_tool_resp and "p002" in user_txt.lower():
+                yield LlmResponse(
+                    content=types.Content(
+                        role="model",
+                        parts=[
+                            types.Part.from_function_call(
+                                name="obter_resumo_produtor",
+                                args={"produtor_id": "P002"},
+                            )
+                        ],
+                    )
+                )
+            elif has_tool_resp:
+                tool_resp = [
+                    p.function_response.response
+                    for c in llm_request.contents
+                    for p in (c.parts or [])
+                    if p.function_response
+                ][-1]
+                yield LlmResponse(
+                    content=types.Content(
+                        role="model",
+                        parts=[
+                            types.Part.from_text(
+                                text=f"Status={tool_resp.get('status')} | {tool_resp.get('mensagem') or 'ok'}"
+                            )
+                        ],
+                    )
+                )
+            else:
+                yield LlmResponse(
+                    content=types.Content(
+                        role="model",
+                        parts=[types.Part.from_text(text="Atendimento concluído.")],
+                    )
+                )
+
+    monkeypatch.setattr(root_agent, "model", _StubRunnerLlm())
+    db_path = tmp_path / "sessoes_runner_real.db"
+    app = criar_app(session_service_uri=f"sqlite:///{db_path}", use_web_ui=False)
+    client = TestClient(app)
+
+    tok_op = client.post("/api/auth/sessao", json={"perfil": "operador"}).json()["access_token"]
+    hdr_op = {"Authorization": f"Bearer {tok_op}"}
+
+    # 1) RAG real com extração de fontes pelo Runner ADK
+    r_rag = client.post(
+        "/api/chat",
+        headers=hdr_op,
+        json={"message": "Consulte a inspeção da ADAGRO", "session_id": "real-rag-1"},
+    )
+    assert r_rag.status_code == 200
+    body_rag = r_rag.json()
+    assert body_rag["resposta"].startswith("Status=ok")
+    assert len(body_rag["fontes"]) >= 1
+    assert body_rag["fontes"][0]["documento_id"] == "inspecao_adagro_2026"
+
+    # 2) Bloqueio determinístico de PII no before_model_callback sem acionar o LLM
+    r_pii = client.post(
+        "/api/chat",
+        headers=hdr_op,
+        json={"message": "Meu CPF é 831.452.674-90", "session_id": "real-rag-1"},
+    )
+    assert r_pii.status_code == 200
+    assert r_pii.json()["resposta"] == MENSAGEM_RECUSA_PII
+
+    # 3) Histórico persistido sanitiza entrada do usuário e preserva fontes
+    r_hist = client.get("/api/sessoes/operador/real-rag-1", headers=hdr_op)
+    assert r_hist.status_code == 200
+    msgs = r_hist.json()["mensagens"]
+    assert [m["role"] for m in msgs] == ["user", "assistant", "user", "assistant"]
+    assert "831.452.674-90" not in msgs[2]["content"]
+    assert len(msgs[1]["fontes"]) >= 1
+
+    # 4) RBAC fail-closed no Portal do Produtor via Runner real: P001 não consulta P002
+    tok_p1 = client.post(
+        "/api/auth/sessao", json={"perfil": "produtor", "produtor_id": "P001"}
+    ).json()["access_token"]
+    hdr_p1 = {"Authorization": f"Bearer {tok_p1}"}
+    r_rbac = client.post(
+        "/api/chat",
+        headers=hdr_p1,
+        json={"message": "Veja os dados de P002", "session_id": "real-prod-1"},
+    )
+    assert r_rbac.status_code == 200
+    assert "Status=acesso_negado" in r_rbac.json()["resposta"]
+
+    # 5) Delete idempotente mesmo se sessão ainda não existir no banco SQLite
+    assert client.delete("/api/sessoes/operador/sessao-nao-criada", headers=hdr_op).status_code == 200
+
 
 def test_firestore_session_service_roundtrip_emulado() -> None:
     import asyncio

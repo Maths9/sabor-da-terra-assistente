@@ -5,12 +5,13 @@ import type { ProdutorListaItem } from "../types";
 
 interface ProducerLoginProps {
   initialProdutorId?: string | null;
+  notice?: string | null;
   onEnter: (produtorId: string) => void;
   onBack: () => void;
 }
 
 // Seleção demonstrativa de produtor usando a lista real da cooperativa (/api/produtores) e token assinado.
-export default function ProducerLogin({ initialProdutorId, onEnter, onBack }: ProducerLoginProps) {
+export default function ProducerLogin({ initialProdutorId, notice, onEnter, onBack }: ProducerLoginProps) {
   const [produtores, setProdutores] = useState<ProdutorListaItem[]>(produtoresFallback);
   const [selectedId, setSelectedId] = useState<string>(initialProdutorId || produtoresFallback[0].id);
   const [codigo, setCodigo] = useState("");
@@ -105,6 +106,7 @@ export default function ProducerLogin({ initialProdutorId, onEnter, onBack }: Pr
             />
           </>
         )}
+        {notice && <p className="aviso atencao">{notice}</p>}
         {erroApi && (
           <p className="aviso atencao">
             Não foi possível atualizar a lista ({erroApi}). Exibindo produtor padrão.
