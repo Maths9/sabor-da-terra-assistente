@@ -2,11 +2,12 @@ import { useState } from "react";
 import { loginPerfil } from "../services/agentService";
 
 interface OperatorLoginProps {
+  notice?: string | null;
   onEnter: () => void;
   onBack: () => void;
 }
 
-export default function OperatorLogin({ onEnter, onBack }: OperatorLoginProps) {
+export default function OperatorLogin({ notice, onEnter, onBack }: OperatorLoginProps) {
   const [codigo, setCodigo] = useState("");
   const [entrando, setEntrando] = useState(false);
   const [erro, setErro] = useState<string | null>(null);
@@ -33,6 +34,7 @@ export default function OperatorLogin({ onEnter, onBack }: OperatorLoginProps) {
         <p className="muted">
           Informe o código de acesso da equipe operacional da cooperativa.
         </p>
+        {notice && <p className="aviso atencao">{notice}</p>}
         <label htmlFor="operador-codigo">
           <small>Código de acesso</small>
         </label>
