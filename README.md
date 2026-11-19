@@ -1,4 +1,4 @@
-# Sabor da Terra — Assistente Inteligente
+# 🌱 Sabor da Terra — Assistente Inteligente
 
 Assistente operacional inteligente baseado em agentes de IA desenvolvido para a **Cooperativa Sabor da Terra** (Garanhuns / Agreste Meridional – PE).
 
