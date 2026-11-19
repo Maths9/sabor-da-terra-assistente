@@ -45,7 +45,7 @@ A aplicação atende **exclusivamente** demandas da Cooperativa Sabor da Terra p
 >
 > Substitua o bloco abaixo pela imagem exportada do Lucidchart (por exemplo, salvando o arquivo em `docs/arquitetura.png` e descomentando a linha da imagem):
 >
-> <!-- ![Arquitetura do Assistente Sabor da Terra](docs/arquitetura.png) -->
+> [Arquitetura do Assistente Sabor da Terra](docs/arquitetura.png)
 
 ### Visão Geral das Camadas
 
