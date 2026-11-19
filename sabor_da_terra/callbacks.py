@@ -190,6 +190,9 @@ def injetar_contexto_temporal(
             f"Passe explicitamente data_referencia='{data_ref}' ao chamar ferramentas com data_referencia. "
             "Para triagem de pedidos/itens, deixe quantidade, unidade e mes_entrega como None se o cliente não os informou "
             "(nunca invente 1 kg nem assuma o mês atual como prazo de entrega)."
+            "[GUARDRAIL DE ESCOPO] Responda SOMENTE sobre a Cooperativa Sabor da Terra. "
+            "Se a mensagem do usuário for sobre programação (ex.: Python), conhecimentos gerais ou qualquer tema externo à cooperativa, "
+            "recuse imediatamente sem responder ao conteúdo da pergunta."
         )
     ]
 
