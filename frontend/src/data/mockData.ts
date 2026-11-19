@@ -5,7 +5,7 @@ export const sugestoes: Record<UserType, string[]> = {
     "Quais pedidos pendentes temos na caixa de entrada hoje?",
     "Recebemos um pedido do SuperBom Atacado: 100kg de queijo coalho e 50kg de frango caipira. Podemos atender?",
     "O que diz o relatório da ADAGRO 2026 sobre não conformidades?",
-    "Me dê o resumo da produtora P001 em setembro de 2026.",
+    "Quais produtores têm certificação orgânica vigente hoje e quais produtos oferecem?",
   ],
   produtor: [
     "Qual é o meu resumo financeiro e de entregas desde setembro?",

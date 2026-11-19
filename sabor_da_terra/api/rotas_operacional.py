@@ -48,13 +48,17 @@ def criar_router_operacional() -> APIRouter:
         produtor_id: str,
         identidade: IdentidadeSessao = Depends(exigir_identidade),
     ) -> PainelProdutorResponse:
-        if identidade.perfil == "produtor":
-            pid = produtor_id.strip().upper()
-            if pid != identidade.produtor_id:
-                raise HTTPException(
-                    status_code=403,
-                    detail="Acesso negado: o produtor só pode consultar o próprio painel.",
-                )
+        if identidade.perfil != "produtor":
+            raise HTTPException(
+                status_code=403,
+                detail="Acesso negado: operadores não têm acesso às informações financeiras individuais dos produtores.",
+            )
+        pid = produtor_id.strip().upper()
+        if pid != identidade.produtor_id:
+            raise HTTPException(
+                status_code=403,
+                detail="Acesso negado: o produtor só pode consultar o próprio painel.",
+            )
 
         res = obter_resumo_produtor(produtor_id=produtor_id)
         if res["status"] == "entrada_invalida":

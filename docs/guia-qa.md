@@ -142,8 +142,8 @@ Na tela inicial, clique em **Sou operador**.
      > *"Qual o status do lote 2024-089?"*
    - **Resultado esperado:** deve informar que o código exato `2024-089` **não existe** na base (`lotes.csv`, padrão `LOT-AAAA-NNNN`) e, caso cite o parecido `LOT-2026-0089`, deve apenas perguntar se deseja verificar antes de assumir que é o mesmo.
 
-5. **Resumo de Produtor + Rascunho de Notificação (sem envio automático):**
-   - Pergunte: *"Me dê o resumo da produtora P001 em setembro de 2026."*
+5. **Bloqueio de financeiro individual para Operador + Rascunho de Notificação (sem envio automático):**
+   - Pergunte: *"Quanto a produtora P001 vendeu em setembro de 2026?"* → **Resultado esperado:** deve recusar o acesso às informações financeiras individuais (restritas ao próprio produtor no Portal do Produtor).
    - Em seguida peça: *"Redija um rascunho de notificação para P001 sobre 30kg de goiaba para o Restaurante Raízes."*
    - **Resultado esperado:** gera um texto em formato de **rascunho sugerido** para revisão e envio manual — nunca deve afirmar que enviou mensagem automaticamente.
 

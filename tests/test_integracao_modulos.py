@@ -597,6 +597,54 @@ def test_rbac_before_e_after_tool_portal_produtor() -> None:
             )
             is None
         )
+        neg_fin_op = validar_acesso_tool(
+            SimpleNamespace(name="obter_resumo_produtor"),
+            {"produtor_id": "P001"},
+            ctx_op,
+        )
+        assert neg_fin_op is not None and neg_fin_op["status"] == "acesso_negado"
+
+    # Defesa em profundidade pós-tool para operador: remove finanças individuais e produtor_id em faturas
+    ctx_op_pos = _dummy_context({"perfil_usuario": "operador"})
+    ret_op_resumo = processar_retorno_tool(
+        SimpleNamespace(name="obter_resumo_produtor"),
+        {"produtor_id": "P001"},
+        ctx_op_pos,
+        obter_resumo_produtor("P001", inicio="2026-09-01", fim="2026-09-30", data_referencia="2026-11-14"),
+    )
+    assert ret_op_resumo["dados"]["financeiro_restrito"] is True
+    for campo_fin in (
+        "moeda",
+        "vendas_total",
+        "total_pago",
+        "total_pendente",
+        "total_vencido",
+        "pendencias_financeiras",
+        "transacoes_periodo",
+    ):
+        assert campo_fin not in ret_op_resumo["dados"]
+
+    ret_op_comp = processar_retorno_tool(
+        SimpleNamespace(name="verificar_compliance_e_credito"),
+        {"comprador": "SuperBom"},
+        ctx_op_pos,
+        verificar_compliance_e_credito(
+            comprador="SuperBom",
+            tipo_cliente="supermercado",
+            produtos=["queijo coalho"],
+            data_referencia="2026-11-14",
+        ),
+    )
+    cred_op = ret_op_comp["dados"]["comprador_credito"]
+    assert float(cred_op["total_vencido"]) == 6020.00
+    assert cred_op["faturas_pendentes"]
+    for fat in cred_op["faturas_pendentes"]:
+        assert "produtor_id" not in fat
+        assert "id_transacao" not in fat
+
+    req_op = LlmRequest()
+    assert injetar_contexto_temporal(_dummy_context({"perfil_usuario": "operador"}), req_op) is None
+    assert "NÃO têm acesso às informações financeiras individuais" in str(req_op.config.system_instruction)
 
     # Fail-closed se perfil produtor estiver sem produtor_em_foco válido
     ctx_sem_id = _dummy_context({"perfil_usuario": "produtor"})
@@ -907,10 +955,18 @@ def test_api_endpoints_e_chat_sessao(monkeypatch, tmp_path) -> None:
     assert client.get("/api/sessoes/operador/sess-int-1", headers=hdr_p001).status_code == 403
     assert client.delete("/api/sessoes/operador/sess-int-1", headers=hdr_p001).status_code == 403
 
-    # Operador pode consultar painel de P001/P999 (404 para inexistente, 400 para inválido)
-    assert client.get("/api/produtores/P001", headers=hdr_op).status_code == 200
-    assert client.get("/api/produtores/P999", headers=hdr_op).status_code == 404
-    assert client.get("/api/produtores/BAD", headers=hdr_op).status_code == 400
+    # Segundo produtor (P002) acessa apenas seu próprio painel e é isolado de P001
+    tok_p002 = client.post(
+        "/api/auth/sessao", json={"perfil": "produtor", "produtor_id": "P002"}
+    ).json()["access_token"]
+    hdr_p002 = {"Authorization": f"Bearer {tok_p002}"}
+    assert client.get("/api/produtores/P002", headers=hdr_p002).status_code == 200
+    assert client.get("/api/produtores/P001", headers=hdr_p002).status_code == 403
+
+    # Operador NÃO tem acesso ao painel financeiro individual de produtores
+    assert client.get("/api/produtores/P001", headers=hdr_op).status_code == 403
+    assert client.get("/api/produtores/P999", headers=hdr_op).status_code == 403
+    assert client.get("/api/produtores/BAD", headers=hdr_op).status_code == 403
 
     # Tentativa de spoofing no POST /api/chat é barrada com 403
     assert (
@@ -1117,7 +1173,7 @@ def test_api_com_runner_adk_real_e_callbacks(monkeypatch, tmp_path) -> None:
     assert "831.452.674-90" not in msgs[2]["content"]
     assert len(msgs[1]["fontes"]) >= 1
 
-    # 4) RBAC fail-closed no Portal do Produtor via Runner real: P001 não consulta P002
+    # 4) RBAC fail-closed via Runner real: P001 não consulta P002 e operador não acessa resumo financeiro individual
     tok_p1 = client.post(
         "/api/auth/sessao", json={"perfil": "produtor", "produtor_id": "P001"}
     ).json()["access_token"]
@@ -1129,6 +1185,14 @@ def test_api_com_runner_adk_real_e_callbacks(monkeypatch, tmp_path) -> None:
     )
     assert r_rbac.status_code == 200
     assert "Status=acesso_negado" in r_rbac.json()["resposta"]
+
+    r_rbac_op = client.post(
+        "/api/chat",
+        headers=hdr_op,
+        json={"message": "Veja os dados financeiros de P002", "session_id": "real-op-fin-1"},
+    )
+    assert r_rbac_op.status_code == 200
+    assert "Status=acesso_negado" in r_rbac_op.json()["resposta"]
 
     # 5) Delete idempotente mesmo se sessão ainda não existir no banco SQLite
     assert client.delete("/api/sessoes/operador/sessao-nao-criada", headers=hdr_op).status_code == 200

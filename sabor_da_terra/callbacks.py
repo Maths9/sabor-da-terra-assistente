@@ -61,6 +61,16 @@ _TIPOS_DOC_PUBLICOS_PRODUTOR = {"ficha", "ficha_tecnica"}
 _TIPOS_DOC_RESTRITOS_OPERADOR = {"contrato", "inspecao", "adagro"}
 _TIPOS_DOC_RESTRITOS_COOPERADO = _TIPOS_DOC_RESTRITOS_OPERADOR
 
+_CAMPOS_FINANCEIROS_INDIVIDUAIS_PRODUTOR = {
+    "moeda",
+    "vendas_total",
+    "total_pago",
+    "total_pendente",
+    "total_vencido",
+    "pendencias_financeiras",
+    "transacoes_periodo",
+}
+
 
 def _sanitizar_estrutura(valor: Any) -> Any:
     """Compatibilidade: sanitiza strings e remove chaves LGPD recursivamente."""
@@ -205,6 +215,12 @@ def injetar_contexto_temporal(
             )
         elif perfil in _PERFIS_OPERADOR:
             linhas_estado.append("perfil=operador (gestão cooperativa)")
+            instrucoes.append(
+                "[PERFIL NA INTERFACE] Usuário operando como OPERADOR DA COOPERATIVA. "
+                "Operadores NÃO têm acesso às informações financeiras individuais dos produtores "
+                "(vendas, faturamento, pagamentos recebidos, saldos pendentes ou extratos individuais). "
+                "Caso sejam solicitados, recuse e oriente consulta no Portal do Produtor ou no setor financeiro."
+            )
 
         if produtor_id_str:
             linhas_estado.append(f"produtor_em_foco={produtor_id_str}")
@@ -251,6 +267,11 @@ def validar_acesso_tool(
 
     perfil = str(state.get("perfil_usuario") or "").strip().lower()
     if perfil in _PERFIS_OPERADOR:
+        if tool.name == "obter_resumo_produtor":
+            return _negar_acesso(
+                "Acesso negado: operadores não têm acesso às informações financeiras individuais dos produtores "
+                "(consulta restrita ao próprio produtor no Portal do Produtor)."
+            )
         return None
     if perfil != "produtor":
         return _negar_acesso(
@@ -356,6 +377,38 @@ def _filtrar_retorno_perfil_produtor(
     return limpo
 
 
+def _filtrar_retorno_perfil_operador(
+    tool_name: str,
+    limpo: dict[str, Any],
+) -> dict[str, Any]:
+    """Remove informações financeiras individuais de produtores em retornos para operadores."""
+    dados = limpo.get("dados")
+    if not isinstance(dados, dict):
+        return limpo
+
+    if tool_name == "obter_resumo_produtor":
+        for campo in _CAMPOS_FINANCEIROS_INDIVIDUAIS_PRODUTOR:
+            dados.pop(campo, None)
+        dados["financeiro_restrito"] = True
+        return limpo
+
+    if tool_name == "verificar_compliance_e_credito":
+        cred = dados.get("comprador_credito")
+        if isinstance(cred, dict) and isinstance(cred.get("faturas_pendentes"), list):
+            cred["faturas_pendentes"] = [
+                {
+                    k: v
+                    for k, v in item.items()
+                    if k not in {"produtor_id", "id_transacao"}
+                }
+                for item in cred["faturas_pendentes"]
+                if isinstance(item, dict)
+            ]
+        return limpo
+
+    return limpo
+
+
 def processar_retorno_tool(
     tool: BaseTool,
     args: dict[str, Any],
@@ -375,6 +428,8 @@ def processar_retorno_tool(
             limpo = _filtrar_retorno_perfil_produtor(
                 tool.name, limpo, _extrair_produtor_id_estado(state)
             )
+        elif perfil in _PERFIS_OPERADOR:
+            limpo = _filtrar_retorno_perfil_operador(tool.name, limpo)
 
         if tool.name == "realizar_triagem_completa_pedido":
             dados = (
