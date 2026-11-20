@@ -41,9 +41,8 @@ A aplicação atende **exclusivamente** demandas da Cooperativa Sabor da Terra p
 
 ## Arquitetura da Solução
 
-> **IMAGEM DA ARQUITETURA:**
 >
-> [Arquitetura do Assistente Sabor da Terra](docs/arquitetura.png)
+> ![Arquitetura do Assistente Sabor da Terra](docs/arquitetura.png)
 
 ### Visão Geral das Camadas
 
